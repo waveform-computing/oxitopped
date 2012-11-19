@@ -186,7 +186,7 @@ class Application(object):
         self.expect(['LOGON', 'INVALID COMMAND'])
         self.send('MAID\r')
         self.expect(['OC110'])
-        self.send('CMDS\r')
+        self.send('GAPB\r')
         logging.info('Entering data retrieval loop')
         rows = []
         buf = ''

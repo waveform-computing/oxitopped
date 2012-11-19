@@ -63,7 +63,7 @@ def main():
         name                 = 'oxitopdump',
         version              = get_version('oxitopdump/__init__.py'),
         description          = 'A tool for extracting data from an OxiTop data logger',
-        long_description     = description('README.txt'),
+        long_description     = description('README.rst'),
         author               = 'Dave Hughes',
         author_email         = 'dave@waveform.org.uk',
         url                  = '',
