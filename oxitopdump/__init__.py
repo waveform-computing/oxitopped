@@ -52,6 +52,9 @@ import logging
 import traceback
 import locale
 
+from oxitopdump.emulator import DummySerial
+
+
 __version__ = '0.1'
 
 # Use the user's default locale instead of C
@@ -174,7 +177,11 @@ class Application(object):
             return 1
 
     def main(self, options, args):
-        self.port = serial.Serial(
+        if options.port == 'TEST':
+            port_class = emulator.DummySerial
+        else:
+            port_class = serial.Serial
+        self.port = port_class(
             options.port,
             baudrate=9600,
             bytesize=serial.EIGHTBITS,
@@ -182,6 +189,7 @@ class Application(object):
             stopbits=serial.STOPBITS_ONE,
             timeout=5,
             rtscts=True)
+        self.port.flushInput()
         self.send('\r')
         self.expect(['LOGON', 'INVALID COMMAND'])
         self.send('MAID\r')
