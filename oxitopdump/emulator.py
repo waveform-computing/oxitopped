@@ -1,22 +1,21 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # vim: set et sw=4 sts=4:
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopget.
+# This file is part of oxitopdump.
 #
-# oxitopget is free software: you can redistribute it and/or modify it under
+# oxitopdump is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopget is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopget.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
 """Defines an emulated serial port for dev/testing purposes."""
 
@@ -28,8 +27,240 @@ from __future__ import (
     )
 
 import time
+import logging
 
 import serial
+
+from oxitopdump.samples import ENCODING, Sample, SampleHead
+
+
+class Error(Exception):
+    """
+    Base class for errors related to the data-logger
+    """
+
+
+class SendError(Error):
+    """
+    Exception raised due to a transmission error
+    """
+
+
+class HandshakeFailed(SendError):
+    """
+    Exception raised when the RTS/CTS handshake fails
+    """
+
+
+class PartialSend(SendError):
+    """
+    Exception raised when not all bytes of the message were sent
+    """
+
+
+class ReceiveError(Error):
+    """
+    Exception raise due to a reception error
+    """
+
+
+class UnexpectedReply(ReceiveError):
+    """
+    Exception raised when the data logger sends back an unexpected reply
+    """
+
+
+class ChecksumMismatch(ReceiveError):
+    """
+    Exception raised when a check-sum doesn't match the data sent
+    """
+
+
+class DataLogger(object):
+    """
+    Interfaces with the serial port of an OxiTop OC110 Data Logger and
+    communicates with it when certain properties are queried for sample or
+    head information.
+
+    `port` : a serial.Serial object (or compatible)
+    """
+
+    def __init__(self, port):
+        if not port.timeout:
+            raise ValueError(
+                'The port is not set for blocking I/O with a non-zero timeout')
+        self.port = port
+        self._samples = None
+        self._seen_prompt = False
+        # Ensure the port is connected to an OC110 by requesting the
+        # manufacturer's ID
+        self._cmd_maid()
+
+    def _tx(self, command, *args):
+        """
+        Sends a command (and optionally arguments) to the OC110. The command
+        should not include the line terminator and the arguments should not
+        include comma separators; this method takes care of command formatting.
+
+        `command` : The command to send
+        """
+        # If we're not Clear To Send, set Ready To Send and wait for CTS to be
+        # raised in response
+        check_response = False
+        response = ''
+        if not self.port.getCTS():
+            cts_wait = time.time() + self.port.timeout
+            self.port.setRTS()
+            while not self.port.getCTS():
+                time.sleep(0.1)
+                if time.time() > cts_wait:
+                    raise HandshakeFailed(
+                        'Failed to detect readiness with RTS/CTS handshake')
+            # Read anything the unit sends through; if it's just booted up
+            # there's probably some BIOS crap to ignore
+            check_response = True
+            response += self._rx(checksum=False)
+        # If we've still not yet seen the ">" prompt, hit enter and see if we
+        # get one back
+        if not self._seen_prompt:
+            self.port.write('\r')
+            check_response = True
+            response += self._rx(checksum=False)
+        # Because of the aforementioned BIOS crap, ignore everything but the
+        # last line when checking for a response
+        if check_response and not (response.endswith('LOGON\r') or
+                response.endswith('INVALID COMMAND\r')):
+            raise UnexpectedReply(
+                'Expected LOGON or INVALID COMMAND, but got %s' % repr(response))
+        logging.debug('TX: %s' % command)
+        data = ','.join([command] + [str(arg) for arg in args]) + '\r'
+        written = self.port.write(data)
+        if written != len(data):
+            raise PartialSend(
+                'Only wrote first %d bytes of %d' % (written, len(data)))
+
+    def _rx(self, checksum=True):
+        """
+        Receives a response from the OC110. If checksum is True, also checks
+        that the transmitted checksum matches the transmitted data.
+
+        `checksum` : If true, treat the last line of the repsonse as a checksum
+        """
+        response = ''
+        while '>\r' not in response:
+            data = self.port.read().decode(ENCODING)
+            if not data:
+                raise ReceiveError('Failed to read any data before timeout')
+            elif data == '\n':
+                # Chuck away any LFs; these only appear in the BIOS output on
+                # unit startup and mess up line splits later on
+                continue
+            elif data == '\r':
+                logging.debug('RX: %s' % response.split('\r')[-1])
+            response += data
+        self._seen_prompt = True
+        # Split the response on the CRs and strip off the prompt at the end
+        response = response.split('\r')[:-2]
+        # If we're expecting a check-sum, check the last line for one and
+        # ensure it matches the transmitted data
+        if checksum:
+            response, checksum_received = response[:-1], response[-1]
+            if not checksum_received.startswith(','):
+                raise UnexpectedReply('Checksum is missing leading comma')
+            checksum_received = int(checksum_received.lstrip(','))
+            checksum_calculated = sum(
+                ord(c) for c in
+                ''.join(line + '\r' for line in response)
+                )
+            if checksum_received != checksum_calculated:
+                raise ChecksumMismatch('Checksum does not match data')
+        # Return the reconstructed response (without prompt or checksum)
+        return ''.join(line + '\r' for line in response)
+
+    def _cmd_maid(self):
+        """
+        Sends a MAID (MAnufacturer ID) command to the OC110 and returns the
+        response.
+        """
+        self._tx('MAID')
+        if self._rx(checksum=False) != 'OC110\r':
+            raise UnexpectedReply(
+                'The connected unit is not an OxiTop OC110')
+
+    def _cmd_cloc(self):
+        """
+        Sends a CLOC (CLOse Connection) command to the OC110 and sets RTS to
+        low (indicating we're going to stop talking to it).
+        """
+        self._tx('CLOC')
+        self.port.setRTS(level=False)
+        self._seen_prompt = False
+
+    def _cmd_gapb(self):
+        """
+        Sends a GAPB (Get All Pressure Bottles) command to the OC110 and
+        returns a sequence of Sample objects in response.
+        """
+        self._tx('GAPB')
+        response = self._rx()
+        # Split the response into individual samples and their head line(s)
+        samples = []
+        data = ''
+        for line in response.split('\r')[:-1]:
+            if not line.startswith(','):
+                if data:
+                    samples.append(data)
+                data = line + '\r'
+            else:
+                data += line + '\r'
+        if data:
+            samples.append(data)
+        return [Sample.from_string(sample) for sample in samples]
+
+    def _cmd_gprb(self, sample):
+        """
+        Sends a GPRB (Get PRessure Bottle) command to the OC110 and returns
+        the Sample object that results.
+        """
+        self._tx('GPRB', sample)
+        response = self._rx()
+        data = ''.join(line + '\r' for line in response).encode(ENCODING)
+        return Sample.from_string(data)
+
+    def _cmd_gsns(self, sample):
+        """
+        Sends a GSNS (???) command to the OC110. No idea what this command
+        does but the original software always used it between GPRB and GMSK.
+        """
+        self._tx('GSNS', sample)
+        self._rx(checksum=False)
+
+    def _cmd_gmsk(self, sample, head):
+        """
+        Sends a GMSK (Get ... erm ... sample head readings - no idea how they
+        get MSK out of that) command to the OC110. Returns the array of
+        pressure readings that results.
+        """
+        self._tx('GMSK', sample, head)
+        response = self._rx()
+        # XXX Check the first line includes the correct sample and head
+        # identifiers as specified, and that the reading count matches
+        response = response[1:]
+        readings = [
+            int(value)
+            for line in response
+            for value in line.split(',')
+            if value
+            ]
+
+    @property
+    def samples(self):
+        if self._samples is None:
+            self._samples = self._cmd_gapb()
+        return self._samples
+
+    def refresh(self):
+        self._samples = None
 
 
 class DummySerial(object):
@@ -55,10 +286,11 @@ class DummySerial(object):
         self.dsrdtr = dsrdtr
         self.writeTimeout = writeTimeout
         self.interCharTimeout = interCharTimeout
+        self._cts_high = None
         self._read_buf = []
         self._write_buf = ''
         self._opened = bool(self.port)
-        assert self.baudrate == 9600
+        #assert self.baudrate == 9600
         assert self.bytesize == serial.EIGHTBITS
         assert self.parity == serial.PARITY_NONE
         assert self.stopbits == serial.STOPBITS_ONE
@@ -67,8 +299,6 @@ class DummySerial(object):
         # some decent way to emulate this?
         self._send('\0\r\n')
         self._send('BIOS OC Version 1.0\r\n')
-        self._send('LOGON\r')
-        self._send('>\r')
 
     def readable(self):
         return True
@@ -112,12 +342,19 @@ class DummySerial(object):
         raise NotImplementedError
 
     def setRTS(self, level=True):
-        raise NotImplementedError
-
-    def setDTR(self, level=True):
-        raise NotImplementedError
+        if level and self._cts_high is None:
+            # Emulate the unit taking half a second to wake up and send the
+            # LOGON message and prompt
+            self._cts_high = time.time() + 0.5
+            self._send('LOGON\r')
+            self._send('>\r')
+        else:
+            self._cts_high = None
 
     def getCTS(self):
+        return (self._cts_high is not None) and (time.time() > self._cts_high)
+
+    def setDTR(self, level=True):
         raise NotImplementedError
 
     def getDSR(self):
@@ -161,23 +398,28 @@ class DummySerial(object):
             raise ValueError('port is closed')
         self._write_buf += data.decode('ASCII')
         while '\r' in self._write_buf:
-            cmd, self._write_buf = self._write_buf.split('\r', 1)
-            self._process(cmd)
+            command, self._write_buf = self._write_buf.split('\r', 1)
+            if ',' in command:
+                command = command.split(',')
+                command, args = command[0], command[1:]
+            else:
+                args = []
+            self._process(command, *args)
         return len(data)
 
-    def _process(self, cmd):
-        if cmd == 'MAID':
+    def _process(self, command, *args):
+        if command == 'MAID':
             # MAnufacturer IDentifier; OC110 sends 'OC110'
             self._send('OC110\r')
-        elif cmd == 'CLOC':
+        elif command == 'CLOC':
             # CLOse Connection; OC110 sends a return, a prompt, pauses, then
             # sends a NUL char, and finally the 'LOGON' prompt
             self._send('\r')
             self._send('>\r')
-            time.sleep(0.5)
+            self._cts_high = time.time() + 0.5
             self._send('\0')
             self._send('LOGON\r')
-        elif cmd == 'GAPB':
+        elif command == 'GAPB':
             self._send('0,0,3,999,11022206,110222165455,110308165455,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
             self._send(',60108,150,\r')
             self._send('0,0,3,999,11022207,110222165501,110308165501,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
@@ -413,3 +655,9 @@ class DummySerial(object):
             for char in response:
                 when += delay
                 self._read_buf.append((char, when))
+
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
+    logger = DataLogger(DummySerial('/dev/ttyUSB0', baudrate=38400, timeout=5))
+    print('There are %d samples' % len(logger.samples))
