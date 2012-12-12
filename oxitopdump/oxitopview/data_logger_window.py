@@ -30,10 +30,75 @@ import os
 
 from PyQt4 import QtCore, QtGui, uic
 
-class DataLoggerWindow(QtGui.QtWidget):
+
+MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+
+class DataLoggerModel(QtCore.QAbstractTableModel):
+    def __init__(self, data_logger):
+        super(DataLoggerModel, self).__init__()
+        self.data_logger = data_logger
+
+    def rowCount(self, parent):
+        if parent.isValid():
+            return 0
+        return len(self.data_logger.bottles)
+
+    def columnCount(self, parent):
+        if parent.isValid():
+            return 0
+        return 9
+
+    def data(self, index, role):
+        if not index.isValid():
+            return None
+        if role != QtCore.Qt.DisplayRole:
+            return None
+        bottle = self.data_logger.bottles[index.row()]
+        return [
+            bottle.serial,
+            bottle.id,
+            bottle.start.strftime('%c'),
+            bottle.finish.strftime('%c'),
+            'Pressure %dd' % bottle.pressure,
+            '%.1fml' % bottle.bottle_volume,
+            '%.1fml' % bottle.sample_volume,
+            '1+%d' % bottle.dilution,
+            str(len(bottle.heads)),
+            ][index.column()]
+
+    def headerData(self, section, orientation, role):
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+            return [
+                'Bottle Serial',
+                'ID',
+                'Start',
+                'Finish',
+                'Mode',
+                'Bottle Vol',
+                'Sample Vol',
+                'Dilution',
+                'Heads',
+                ][section]
+        elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+            return section + 1
+        else:
+            return None
+
+
+class DataLoggerWindow(QtGui.QWidget):
     "Document window for the data logger connection"
 
     def __init__(self, data_logger):
         super(DataLoggerWindow, self).__init__(None)
-        self.data_logger = data_logger
+        self.ui = uic.loadUi(
+            os.path.join(MODULE_DIR, 'data_logger_window.ui'), self)
+        try:
+            self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
+            self.setWindowTitle(
+                '%s on %s' % (data_logger.id, data_logger.port.port))
+        except (ValueError, IOError) as exc:
+            QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
+            self.close()
+            return
 
