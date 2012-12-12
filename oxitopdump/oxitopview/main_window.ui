@@ -50,13 +50,13 @@
      <string>&amp;File</string>
     </property>
     <addaction name="connect_action"/>
-    <addaction name="actionC_lose"/>
+    <addaction name="close_action"/>
     <addaction name="separator"/>
     <addaction name="export_action"/>
     <addaction name="separator"/>
     <addaction name="quit_action"/>
    </widget>
-   <widget class="QMenu" name="menu_Edit">
+   <widget class="QMenu" name="edit_menu">
     <property name="title">
      <string>&amp;Edit</string>
     </property>
@@ -64,7 +64,7 @@
     <addaction name="separator"/>
     <addaction name="select_all_action"/>
    </widget>
-   <widget class="QMenu" name="menu_View">
+   <widget class="QMenu" name="view_menu">
     <property name="title">
      <string>&amp;View</string>
     </property>
@@ -72,7 +72,7 @@
     <addaction name="separator"/>
     <addaction name="status_bar_action"/>
    </widget>
-   <widget class="QMenu" name="menu_Help">
+   <widget class="QMenu" name="help_menu">
     <property name="title">
      <string>&amp;Help</string>
     </property>
@@ -80,9 +80,9 @@
     <addaction name="about_qt_action"/>
    </widget>
    <addaction name="file_menu"/>
-   <addaction name="menu_Edit"/>
-   <addaction name="menu_View"/>
-   <addaction name="menu_Help"/>
+   <addaction name="edit_menu"/>
+   <addaction name="view_menu"/>
+   <addaction name="help_menu"/>
   </widget>
   <widget class="QStatusBar" name="status_bar"/>
   <widget class="QToolBar" name="tool_bar">
@@ -177,7 +177,7 @@
     <string>Status &amp;Bar</string>
    </property>
   </action>
-  <action name="actionC_lose">
+  <action name="close_action">
    <property name="text">
     <string>&amp;Close</string>
    </property>

@@ -28,10 +28,13 @@ from __future__ import (
 
 import os
 
+import serial
 from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.connect_dialog import ConnectDialog
 from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
+from oxitopdump.bottles import DataLogger, DummySerial
+
 
 
 MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -77,7 +80,7 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.about_qt_action.triggered.connect(self.about_qt)
         self.ui.about_qt_action.setIcon(get_icon('help-about'))
         self.ui.connect_action.setIcon(get_icon('document-open'))
-        self.ui.connect_action.triggered.connect(self.open_file)
+        self.ui.connect_action.triggered.connect(self.connect_logger)
         self.ui.close_action.setIcon(get_icon('window-close'))
         self.ui.close_action.triggered.connect(self.close_file)
         self.ui.status_bar_action.triggered.connect(self.toggle_status)
@@ -107,8 +110,17 @@ class MainWindow(QtGui.QMainWindow):
         if dialog.exec_():
             window = None
             try:
+                if dialog.com_port == 'TEST':
+                    serial_class = DummySerial
+                else:
+                    serial_class = serial.Serial
                 window = self.ui.mdi_area.addSubWindow(
-                    DataLoggerWindow(dialog.com_port))
+                    DataLoggerWindow(DataLogger(serial_class(
+                        dialog.com_port,
+                        bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE,
+                        rtscts=True, timeout=5))))
                 window.show()
             except KeyboardInterrupt:
                 if window is not None:
