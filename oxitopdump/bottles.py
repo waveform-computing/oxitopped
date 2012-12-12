@@ -294,7 +294,8 @@ class DataLogger(object):
         self._seen_prompt = False
         # Ensure the port is connected to an OC110 by requesting the
         # manufacturer's ID
-        if self._MAID().rstrip('\r') != 'OC110':
+        self.id = self._MAID().rstrip('\r')
+        if self.id != 'OC110':
             raise UnexpectedReply(
                 'The connected unit is not an OxiTop OC110')
 
@@ -439,12 +440,12 @@ class DataLogger(object):
             for line in data.split('\r')[:-1]:
                 if not line.startswith(','):
                     if bottle:
-                        bottles.append(Bottle.from_string(bottle))
+                        self._bottles.append(Bottle.from_string(bottle))
                     bottle = line + '\r'
                 else:
                     bottle += line + '\r'
             if bottle:
-                bottles.append(Bottle.from_string(bottle))
+                self._bottles.append(Bottle.from_string(bottle))
         return self._bottles
 
     def refresh(self):

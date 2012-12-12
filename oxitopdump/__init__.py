@@ -52,7 +52,7 @@ import logging
 import traceback
 import locale
 
-from oxitopdump.emulator import DummySerial
+from oxitopdump.bottles import DummySerial
 
 
 __version__ = '0.1'
