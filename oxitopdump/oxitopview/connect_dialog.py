@@ -27,6 +27,7 @@ from __future__ import (
     )
 
 import os
+from operator import itemgetter
 
 from PyQt4 import QtCore, QtGui, uic
 
@@ -46,14 +47,26 @@ class ConnectDialog(QtGui.QDialog):
         self.settings = self.parent().settings
         self.settings.beginGroup('last_used')
         try:
+            try:
+                import serial.tools.list_ports
+                com_ports = [
+                    path for (path, name, hw) in sorted(
+                        serial.tools.list_ports.comports(), key=itemgetter(0))
+                    ]
+            except ImportError:
+                com_ports = []
             count = self.settings.beginReadArray('com_ports')
             try:
                 for i in range(count):
                     self.settings.setArrayIndex(i)
-                    self.ui.com_port_combo.addItem(
-                        self.settings.value('port'))
+                    com_port = self.settings.value('port')
+                    if com_port in com_ports:
+                        com_ports.remove(com_port)
+                    com_ports.insert(0, com_port)
             finally:
                 self.settings.endArray()
+            for com_port in com_ports:
+                self.ui.com_port_combo.addItem(com_port)
             self.ui.com_port_combo.setEditText(
                 self.settings.value('com_port', ''))
         finally:
