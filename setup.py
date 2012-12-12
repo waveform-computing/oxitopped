@@ -38,7 +38,16 @@ except LookupError:
 
 require_python(0x020600f0)
 
-classifiers = [
+REQUIRES = [
+    'pyserial',
+    ]
+
+EXTRA_REQUIRES = {
+    'XLS':        ['xlwt'],
+    'GUI':        ['pyqt'],
+    }
+
+CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
     'Environment :: Console',
     'Intended Audience :: Science/Research',
@@ -49,32 +58,35 @@ classifiers = [
     'Programming Language :: Python :: 2.6',
     'Programming Language :: Python :: 2.7',
     'Topic :: Scientific/Engineering',
-]
+    ]
 
-entry_points = {
+ENTRY_POINTS = {
     'console_scripts': [
         'oxitopdump = oxitopdump:main',
+    ],
+    'gui_scripts': [
+        'oxitopview = oxitopdump.oxitopview:main',
     ]
-}
+    }
 
 
 def main():
     setup(
         name                 = 'oxitopdump',
         version              = get_version('oxitopdump/__init__.py'),
-        description          = 'A tool for extracting data from an OxiTop data logger',
+        description          = 'A tool for extracting data from an OxiTop OC110 data logger',
         long_description     = description('README.rst'),
         author               = 'Dave Hughes',
         author_email         = 'dave@waveform.org.uk',
         url                  = '',
         packages             = find_packages(exclude=['distribute_setup', 'utils']),
-        install_requires     = ['pyserial'],
-        extras_require       = {},
+        install_requires     = REQUIRES,
+        extras_require       = EXTRA_REQUIRES,
         include_package_data = True,
         platforms            = 'ALL',
         zip_safe             = False,
-        entry_points         = entry_points,
-        classifiers          = classifiers
+        entry_points         = ENTRY_POINTS,
+        classifiers          = CLASSIFIERS,
     )
 
 if __name__ == '__main__':
