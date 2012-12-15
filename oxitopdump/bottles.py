@@ -36,9 +36,10 @@ from __future__ import (
     print_function,
     )
 
-from datetime import datetime, timedelta
+import re
 import time
 import logging
+from datetime import datetime, timedelta
 
 import serial
 
@@ -98,24 +99,36 @@ class Bottle(object):
     `start` : the timestamp at the start of the run
     `finish` : the timestamp at the end of the run
     `interval` : the interval between readings (expressed as a timedelta)
-    `pressure` : the "pressure type" (what does this mean?)
+    `measurements` : the expected number of measurements
+    `mode` : one of 'pressure' or 'bod'
     `bottle_volume` : the nominal volume (in ml) of the bottle
     `sample_volume` : the volume of the sample (in ml) within the bottle
     `logger` : a DataLogger instance that can be used to update the bottle
     """
 
     def __init__(
-            self, serial, id, start, finish, interval, pressure, bottle_volume,
-            sample_volume, dilution, logger=None):
+            self, serial, id, start, finish, interval, measurements, mode,
+            bottle_volume, sample_volume, dilution, logger=None):
         self.logger = logger
+        try:
+            date, num = serial.split('-', 1)
+            datetime.strptime(date, '%y%m%d')
+            assert 1 <= int(num) <= 99
+        except (ValueError, AssertionError) as exc:
+            raise ValueError('invalid serial number %s' % serial)
+        if not (1 <= id <= 999):
+            raise ValueError('id must be an integer between 1 and 999')
+        if not mode in ('pressure', 'bod'):
+            raise ValueError('mode must be one of "pressure" or "bod"')
         self.serial = serial
         self.id = id
         self.start = start
         self.finish = finish
         self.interval = interval
-        self.pressure = pressure
-        self.bottle_volume = bottle_volume
-        self.sample_volume = sample_volume
+        self.measurements = measurements
+        self.mode = mode
+        self.bottle_volume = float(bottle_volume)
+        self.sample_volume = float(sample_volume)
         self.dilution = dilution
         self.heads = []
 
@@ -138,23 +151,24 @@ class Bottle(object):
             _,             # ???
             _,             # ???
             measurements,  # number of measurements
-            pressure,      # pressure type
+            pressure,      # pressure type?
             bottle_volume, # bottle volume (ml)
             sample_volume, # sample volume (ml)
             _,             # ???
             _,             # ???
             _,             # ???
             _,             # number of heads, perhaps???
-            interval,      # interval of readings
+            interval,      # interval of readings (perhaps, see 308<=>112 note below)
         ) = data[0].split(',')
         bottle = cls(
-            serial,
+            '%s-%s' % (serial[:-2], serial[-2:]),
             int(id),
             datetime.strptime(start, TIMESTAMP_FORMAT),
             datetime.strptime(finish, TIMESTAMP_FORMAT),
-            # For some reason, intervals of 112 minutes are reported as 308?!
-            timedelta(seconds=60 * int(112 if interval == 308 else interval)),
-            int(pressure) // (24 * 60),
+            # XXX For some reason, intervals of 112 minutes are reported as 308?!
+            timedelta(seconds=60 * int(112 if int(interval) == 308 else interval)),
+            int(measurements),
+            'pressure',
             float(bottle_volume),
             float(sample_volume),
             0,
@@ -173,7 +187,7 @@ class Bottle(object):
             '0',
             '3',
             str(self.id),
-            str(self.serial),
+            ''.join(self.serial.split('-', 1)),
             self.start.strftime(TIMESTAMP_FORMAT),
             self.finish.strftime(TIMESTAMP_FORMAT),
             '2',
@@ -181,7 +195,7 @@ class Bottle(object):
             '240',
             '40',
             str(self.measurements),
-            str(self.pressure * 24 * 60),
+            str((self.finish - self.start).days * 24 * 60),
             '%.0f' % self.bottle_volume,
             '%.1f' % self.sample_volume,
             '0',
@@ -191,12 +205,12 @@ class Bottle(object):
                 3:  6,
                 2:  4,
                 1:  2,
-                }[self.pressure]),
+                }[(self.finish - self.start).days]),
             '2',
             '1',
-            str(308 if (interval.seconds // 60) == 112 else (interval.seconds // 60)),
-            )) +
-            '\r' +
+            # XXX See above note about 308<=>112
+            str(308 if (self.interval.seconds // 60) == 112 else (self.interval.seconds // 60)),
+            )) + '\r' +
             ''.join(str(head) for head in self.heads)).encode(ENCODING)
 
     def __unicode__(self):
@@ -211,7 +225,8 @@ class Bottle(object):
             self.start = new.start
             self.finish = new.finish
             self.interval = new.interval
-            self.pressure = new.pressure
+            self.measurements = new.measurements
+            self.mode = new.mode
             self.bottle_volume = new.bottle_volume
             self.sample_volume = new.sample_volume
             self.dilution = new.dilution
@@ -224,16 +239,22 @@ class BottleHead(object):
 
     `bottle` : the bottle this head belongs to
     `serial` : the serial number of the head
+    `readings` : optional sequence of integers for the head's readings
     """
 
     def __init__(self, bottle, serial, readings=None):
         self.bottle = bottle
         self.serial = serial
-        self._readings = readings
+        if readings is None or isinstance(readings, BottleReadings):
+            self._readings = readings
+        else:
+            self._readings = BottleReadings(self, readings)
 
     @classmethod
     def from_string(cls, bottle, data):
         data = data.decode(ENCODING)
+        # Strip trailing CR
+        data = data.rstrip('\r')
         (   _,      # blank value (due to extraneous leading comma)
             serial, # serial number of head
             _,      # ???
@@ -258,23 +279,74 @@ class BottleHead(object):
             data = self.bottle.logger._GMSK(self.bottle.serial, self.serial)
             # XXX Check the first line includes the correct bottle and head
             # identifiers as specified, and that the reading count matches
-            data = data[1:]
-            self._readings = [
-                int(value)
-                for line in data.split('\r')
-                for value in line.split(',')
-                if value
-                ]
+            self._readings = BottleReadings.from_string(self, data)
         return self._readings
 
 
-class BottleHeadReadings(list):
-    def __init__(self, head, *args):
-        self.head = head
-        super(BottleHeadReadings, self).__init__(*args)
+class BottleReadings(object):
+    """
+    Represents the readings of a bottle head as a sequence-like object.
 
-    def refresh(self):
-        self.clear()
+    `head` : the bottle head that the readings apply to
+    `readings` : the readings for the head
+    """
+
+    def __init__(self, head, readings):
+        self.head = head
+        self._items = list(readings)
+
+    @classmethod
+    def from_string(cls, head, data):
+        data = data.decode(ENCODING).split('\r')
+        # Discard the empty line at the end
+        assert not data[-1]
+        data = data[:-1]
+        (   head_serial,      # blank value (due to extraneous leading comma)
+            bottle_serial, # serial number of head
+            _,      # ??? (always 1)
+            _,      # ??? (always 1)
+            _,      # ??? (0-247?)
+            bottle_start,
+            readings_len,
+        ) = data[0].split(',')
+        head_serial = str(int(head_serial))
+        readings_len = int(readings_len)
+        readings = cls(head, (
+            int(value)
+            for line in data[1:]
+            for value in line.split(',')
+            if value
+            ))
+        assert head_serial == head.serial
+        assert '%s-%s' % (bottle_serial[:-2], bottle_serial[-2:]) == head.bottle.serial
+        assert len(readings) == readings_len
+        return readings
+
+    def __str__(self):
+        return (','.join((
+            '%09d' % int(self.head.serial),
+            ''.join(self.head.bottle.serial.split('-', 1)),
+            '1',
+            '1',
+            '247', # can be zero, but we've no idea what this means...
+            self.head.bottle.start.strftime(TIMESTAMP_FORMAT),
+            str(len(self)),
+            )) + '\r' +
+            ''.join(
+                ''.join(',%d' % reading for reading in chunk) + '\r'
+                for chunk in [self[i:i + 10] for i in range(0, len(self), 10)]
+                )
+            ).encode(ENCODING)
+
+    def __unicode__(self):
+        return str(self).decode(ENCODING)
+
+    def __len__(self):
+        return len(self._items)
+
+    def __getitem__(self, index):
+        return self._items[index]
+
 
 class DataLogger(object):
     """
@@ -440,12 +512,14 @@ class DataLogger(object):
             for line in data.split('\r')[:-1]:
                 if not line.startswith(','):
                     if bottle:
-                        self._bottles.append(Bottle.from_string(bottle))
+                        self._bottles.append(
+                            Bottle.from_string(bottle, logger=self))
                     bottle = line + '\r'
                 else:
                     bottle += line + '\r'
             if bottle:
-                self._bottles.append(Bottle.from_string(bottle))
+                self._bottles.append(
+                    Bottle.from_string(bottle, logger=self))
         return self._bottles
 
     def refresh(self):
@@ -488,6 +562,120 @@ class DummySerial(object):
         # some decent way to emulate this?
         self._send('\0\r\n')
         self._send('BIOS OC Version 1.0\r\n')
+        # Set up the list of gas bottles and pressure readings
+        self._bottles = []
+        self._bottles.append(Bottle(
+            serial='110222-06',
+            id=999,
+            start=datetime(2011, 2, 22, 16, 54, 55),
+            finish=datetime(2011, 3, 8, 16, 54, 55),
+            interval=timedelta(seconds=56 * 60),
+            measurements=360,
+            mode='pressure',
+            bottle_volume=510,
+            sample_volume=432,
+            dilution=0
+            ))
+        self._bottles[-1].heads.append(BottleHead(
+            self._bottles[-1],
+            '60108',
+            [
+                970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
+                965, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 965,
+                964, 965, 965, 964, 964, 964, 965, 965, 965, 965, 965, 965,
+                965, 965, 964, 964, 965, 965, 965, 964, 965, 965, 965, 965,
+                965, 965, 965, 965, 965, 965, 965, 964, 964, 964, 965, 965,
+                965, 965, 965, 964, 964, 964, 964, 965, 965, 965, 965, 965,
+                964, 964, 964, 964, 964, 964, 965, 965, 965, 965, 965, 964,
+                964, 964, 964, 964, 965, 965, 964, 964, 964, 965, 965, 964,
+                965, 965, 964, 964, 965, 964, 964, 964, 965, 965, 964, 964,
+                964, 965, 965, 964, 964, 964, 965, 964, 964, 964, 964, 965,
+                964, 965, 965, 964, 964, 965, 965, 964, 964, 964, 964, 964,
+                965, 964, 965, 965, 964, 965, 965, 964, 965, 964, 965, 965,
+                965, 964, 965, 964, 964, 964, 964, 964, 964, 964, 964, 964,
+                964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 965, 965,
+                964, 964, 964, 964, 964, 965, 964, 964, 964, 964, 964, 964,
+                964, 964, 964, 965, 965, 964, 965, 964, 964, 965, 964, 964,
+                964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964,
+                964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964,
+                964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964, 964,
+                964, 964, 964, 964, 964, 964, 964, 964, 964, 963, 963, 964,
+                963, 963, 964, 964, 964, 964, 964, 964, 963, 964, 964, 964,
+                964, 964, 964, 964, 964, 963, 963, 963, 963, 964, 964, 964,
+                964, 963, 963, 964, 964, 964, 963, 963, 963, 964, 963, 964,
+                964, 964, 964, 964, 964, 963, 963, 963, 963, 963, 963, 963,
+                963, 963, 963, 963, 963, 963, 963, 963, 964, 964, 963, 963,
+                963, 963, 963, 963, 963, 964, 963, 963, 963, 963, 963, 962,
+                962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962,
+                961, 962, 962, 962, 963, 962, 962, 962, 962, 962, 962, 962,
+                962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 961,
+                962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 961,
+                962,
+                ]))
+        self._bottles.append(Bottle(
+            serial='121119-03',
+            id=3,
+            start=datetime(2012, 11, 19, 13, 53, 4),
+            finish=datetime(2012, 11, 22, 13, 53, 4),
+            interval=timedelta(seconds=12 * 60),
+            measurements=360,
+            mode='pressure',
+            bottle_volume=510,
+            sample_volume=432,
+            dilution=0
+            ))
+        self._bottles[-1].heads.append(BottleHead(
+            self._bottles[-1],
+            '60108',
+            []))
+        self._bottles.append(Bottle(
+            serial='120323-01',
+            id=1,
+            start=datetime(2012, 3, 23, 17, 32, 23),
+            finish=datetime(2012, 4, 20, 17, 32, 23),
+            interval=timedelta(seconds=112 * 60),
+            measurements=360,
+            mode='pressure',
+            bottle_volume=510,
+            sample_volume=432,
+            dilution=0
+            ))
+        self._bottles[-1].heads.append(BottleHead(
+            self._bottles[-1],
+            '60145',
+            [
+                976, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963, 963,
+                963, 963, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963,
+                962, 963, 963, 962, 962, 963, 963, 963, 963, 962, 963, 963,
+                963, 962, 962, 963, 962, 963, 963, 962, 962, 963, 963, 963,
+                963, 962, 962, 963, 963, 963, 962, 963, 963, 963, 963, 962,
+                962, 962, 963, 962, 963, 962, 962, 963, 963, 962, 962, 962,
+                962, 963, 962, 962, 962, 962, 963, 963, 962, 963, 963, 963,
+                962, 962, 962, 962, 963, 962, 962, 962, 962, 962, 962, 962,
+                962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 963, 962,
+                962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962,
+                962, 961, 962, 961, 962, 962, 962, 962, 962, 962, 962, 961,
+                962, 961, 961, 962, 961, 962, 962, 962, 962, 961, 962, 962,
+                961, 962, 962, 961, 962, 961, 962, 961, 962, 961, 962, 961,
+                962, 961, 962, 961, 962, 961, 962, 961, 961, 961, 962, 961,
+                962, 962, 961, 962, 962, 961, 961, 961, 962, 961, 961, 962,
+                962, 961, 962, 961, 961, 961, 961, 961, 962, 961, 961, 961,
+                961, 962, 961, 962, 961, 961, 962, 961, 961, 962, 961, 961,
+                961, 961, 961, 961, 961, 961, 961, 961, 961, 961, 961, 961,
+                962, 961, 960, 961, 961, 961, 961, 960, 961, 961, 960, 961,
+                961, 961, 961, 961, 961, 961, 961, 961, 961, 961, 961, 961,
+                961, 961, 960, 961, 960, 961, 961, 960, 961, 960, 961, 960,
+                960, 960, 961, 961, 960, 961, 960, 961, 961, 960, 961, 960,
+                961, 960, 961, 960, 960, 960, 961, 960, 960, 961, 961, 961,
+                960, 961, 960, 960, 961, 960, 960, 961, 960, 960, 960, 960,
+                961, 960, 960, 960, 960, 960, 960, 961, 960, 960, 960, 960,
+                960, 960, 960, 959, 960, 959, 960, 960, 959, 960, 960, 960,
+                960, 960, 960, 960, 960, 960, 960, 960, 960, 960, 960, 960,
+                960, 959, 960, 959, 960, 960, 959, 960, 960, 959, 960, 960,
+                959, 960, 959, 959, 960, 959, 959, 959, 960, 960, 960, 959,
+                959, 960, 959, 960, 960, 959, 960, 959, 959, 960, 959, 959,
+                960,
+                ]))
 
     def readable(self):
         return True
@@ -596,6 +784,15 @@ class DummySerial(object):
             self._process(command, *args)
         return len(data)
 
+    def _bottle_by_serial(self, serial):
+        if '-' not in serial:
+            serial = '%s-%s' % (serial[:-2], serial[-2:])
+        for bottle in self._bottles:
+            if bottle.serial == serial:
+                return bottle
+        raise ValueError('%s is not a valid bottle serial number')
+
+
     def _process(self, command, *args):
         if command == 'MAID':
             # MAnufacturer IDentifier; OC110 sends 'OC110'
@@ -609,228 +806,53 @@ class DummySerial(object):
             self._send('\0')
             self._send('LOGON\r')
         elif command == 'GAPB':
-            self._send('0,0,3,999,11022206,110222165455,110308165455,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,999,11022207,110222165501,110308165501,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,999,11022208,110222165523,110308165523,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,999,11022209,110222165528,110308165528,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,999,11022210,110222165548,110308165548,2,5,240,40,360,20160,510,432.0,0,10,2,1,56\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12032301,120323173223,120420173223,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12032302,120323173229,120420173229,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12032303,120323173234,120420173234,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12032304,120323173240,120420173240,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12032305,120323173318,120420173318,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12032306,120323173325,120420173325,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12032307,120323173330,120420173330,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12032308,120323173336,120420173336,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12032309,120323173439,120420173439,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12032310,120323173445,120420173445,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12032311,120323173450,120420173450,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12042401,120424131232,120522131232,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12042402,120424131237,120522131237,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12042403,120424131243,120522131243,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12042404,120424131356,120522131356,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12042405,120424131403,120522131403,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12042406,120424131410,120522131410,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12042407,120424131417,120522131417,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12042408,120424131455,120522131455,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12042409,120424131500,120522131500,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12042410,120424131506,120522131506,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12042411,120424131512,120522131512,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12052301,120523152719,120620152719,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12052302,120523152726,120620152726,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12052303,120523152731,120620152731,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12052304,120523152814,120620152814,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12052305,120523152820,120620152820,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12052306,120523152826,120620152826,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12052307,120523152832,120620152832,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12052308,120523152915,120620152915,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12052309,120523152921,120620152921,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12052310,120523152927,120620152927,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12052311,120523152933,120620152933,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12062101,120621103126,120719103126,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12062102,120621103132,120719103132,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12062103,120621103138,120719103138,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12062104,120621103214,120719103214,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12062105,120621103219,120719103219,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12062106,120621103224,120719103224,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12062107,120621103230,120719103230,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12062108,120621103259,120719103259,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12062109,120621103305,120719103305,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12062110,120621103320,120719103320,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12062111,120621103326,120719103326,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12071901,120719151647,120816151647,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12071902,120719151703,120816151703,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12071903,120719151717,120816151717,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12071904,120719151820,120816151820,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12071905,120719151836,120816151836,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12071906,120719151915,120816151915,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12071907,120719151931,120816151931,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12071908,120719152022,120816152022,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12071909,120719152028,120816152028,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12071910,120719152033,120816152033,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12071911,120719152040,120816152040,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12082101,120821134723,120918134723,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12082102,120821134729,120918134729,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12082103,120821134735,120918134735,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12082104,120821134805,120918134805,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12082105,120821134816,120918134816,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12082106,120821134823,120918134823,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12082107,120821134829,120918134829,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12082108,120821134857,120918134857,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,1,12082109,120821134903,120918134903,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12082110,120821134909,120918134909,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12082111,120821134915,120918134915,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12091801,120918145339,121016145339,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,1,12091802,120918145345,121016145345,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,1,12091803,120918145352,121016145352,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,1,12091804,120918145433,121016145433,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,1,12091805,120918145438,121016145438,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,1,12091806,120918145450,121016145450,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,1,12091807,120918145457,121016145457,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,1,12091808,120918145529,121016145529,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,1,12091809,120918145536,121016145536,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,1,12091810,120918145541,121016145541,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,1,12091811,120918145548,121016145548,2,5,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,3,12103001,121030110410,121031110410,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12103002,121030114331,121031114331,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12103003,121030114339,121031114339,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,3,12110201,121102110637,121103110637,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12110202,121102110721,121103110721,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,3,12110203,121102110744,121103110744,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12110501,121105112507,121106112507,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12110502,121105112629,121106112629,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,3,12110503,121105112638,121106112638,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12110601,121106121024,121107121024,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12110602,121106121032,121107121032,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,3,12110603,121106121045,121107121045,2,5,240,40,360,1440,510,432.0,0,2,2,1,4\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12111201,121112154235,121210154235,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60134,150,\r')
-            self._send('0,0,3,3,12111202,121112154241,121210154241,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60138,150,\r')
-            self._send('0,0,3,3,12111203,121112154248,121210154248,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60131,150,\r')
-            self._send('0,0,3,3,12111204,121112154256,121210154256,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60145,150,\r')
-            self._send('0,0,3,3,12111205,121112154303,121210154303,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60109,150,\r')
-            self._send('0,0,3,3,12111206,121112154311,121210154311,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60125,150,\r')
-            self._send('0,0,3,3,12111207,121112154318,121210154318,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60121,150,\r')
-            self._send('0,0,3,3,12111208,121112154325,121210154325,1,1,240,40,360,40320,510,432.0,0,10,2,1,308\r')
-            self._send(',60148,150,\r')
-            self._send('0,0,3,3,12111401,121114122222,121116122222,2,5,240,40,360,2880,510,432.0,0,4,2,1,8\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12111402,121114122234,121116122234,2,5,240,40,360,2880,510,432.0,0,4,2,1,8\r')
-            self._send(',60108,150,\r')
-            self._send('0,0,3,3,12111403,121114122243,121116122243,2,5,240,40,360,2880,510,432.0,0,4,2,1,8\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12111901,121119135242,121122135242,1,0,240,40,360,4320,510,432.0,0,6,2,1,12\r')
-            self._send(',60050,150,\r')
-            self._send('0,0,3,3,12111902,121119135255,121122135255,1,0,240,40,360,4320,510,432.0,0,6,2,1,12\r')
-            self._send(',60133,150,\r')
-            self._send('0,0,3,3,12111903,121119135304,121122135304,1,0,240,40,360,4320,510,432.0,0,6,2,1,12\r')
-            self._send(',60108,150,\r')
-            self._send(',0511361\r')
+            # Get All Pressure Bottles command returns the header details of
+            # all bottles and their heads
+            data = ''.join(str(bottle) for bottle in self._bottles)
+            self._send(data, checksum=True)
+        elif command == 'GPRB':
+            # Get PRessure Bottle command returns the details of the specified
+            # bottle and its heads
+            if len(args) != 1:
+                self._send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self._bottle_by_serial(args[0])
+                except ValueError:
+                    self._send('INVALID BOTTLE\r')
+                else:
+                    self._send(str(bottle), checksum=True)
+        elif command == 'GSNS':
+            # No idea what GSNS does. Accepts a bottle serial and returns
+            # nothing...
+            if len(args) != 1:
+                self._send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self._bottle_by_serial(args[0])
+                except ValueError:
+                    self._send('INVALID BOTTLE\r')
+        elif command.startswith('GMSK'):
+            # GMSK returns all readings from a specified bottle head
+            if len(args) != 2:
+                self._send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self._bottle_by_serial(args[0])
+                except ValueError:
+                    self._send('INVALID BOTTLE\r')
+                for head in bottle.heads:
+                    if head.serial == args[1]:
+                        break
+                    head = None
+                if not head:
+                    self._send('INVALID HEAD\r')
+                self._send(str(head.readings), checksum=True)
         else:
             self._send('INVALID COMMAND\r')
         self._send('>\r')
 
-    def _send(self, response):
+    def _send(self, response, checksum=False):
         # If the port isn't open, just chuck away anything that gets sent
         if self._opened:
             # Transmission settings are 8-N-1, so cps of transmission is
@@ -844,5 +866,7 @@ class DummySerial(object):
             for char in response:
                 when += delay
                 self._read_buf.append((char, when))
-
+            if checksum:
+                value = sum(ord(c) for c in response)
+                self._send(',%d\r' % value, checksum=False)
 
