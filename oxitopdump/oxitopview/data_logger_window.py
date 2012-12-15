@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Module implementing the oxitopview data logger window."""
+"""Module implementing the oxitopview data logger sub-window."""
 
 from __future__ import (
     unicode_literals,
@@ -30,6 +30,7 @@ import os
 
 from PyQt4 import QtCore, QtGui, uic
 
+from oxitopdump.oxitopview.bottle_window import BottleWindow
 
 MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -60,7 +61,12 @@ class DataLoggerModel(QtCore.QAbstractTableModel):
             bottle.id,
             bottle.start.strftime('%c'),
             bottle.finish.strftime('%c'),
-            'Pressure %dd' % bottle.pressure,
+            (   'Pressure %dd' % (bottle.finish - bottle.start).days
+                    if bottle.mode == 'pressure' else
+                'BOD'
+                    if bottle.mode == 'bod' else
+                'Unknown'
+                ),
             '%.1fml' % bottle.bottle_volume,
             '%.1fml' % bottle.sample_volume,
             '1+%d' % bottle.dilution,
@@ -93,12 +99,29 @@ class DataLoggerWindow(QtGui.QWidget):
         super(DataLoggerWindow, self).__init__(None)
         self.ui = uic.loadUi(
             os.path.join(MODULE_DIR, 'data_logger_window.ui'), self)
+        QtGui.QApplication.instance().setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
-            self.setWindowTitle(
-                '%s on %s' % (data_logger.id, data_logger.port.port))
-        except (ValueError, IOError) as exc:
-            QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
-            self.close()
-            return
+            try:
+                self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
+                self.ui.bottles_view.doubleClicked.connect(
+                    self.bottles_view_double_clicked)
+                self.setWindowTitle(
+                    '%s on %s' % (data_logger.id, data_logger.port.port))
+            except (ValueError, IOError) as exc:
+                QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
+                self.close()
+                return
+        finally:
+            QtGui.QApplication.instance().restoreOverrideCursor()
 
+    def bottles_view_double_clicked(self, index):
+        # TODO Find existing window and simply activate it if available
+        bottle = self.ui.bottles_view.model().data_logger.bottles[index.row()]
+        window = None
+        try:
+            window = self.window().ui.mdi_area.addSubWindow(
+                BottleWindow(bottle))
+            window.show()
+        except KeyboardInterrupt:
+            if window is not None:
+                window.close()

@@ -117,16 +117,12 @@ class BottleWindow(QtGui.QWidget):
         self.ui.desired_values_edit.setText(str(bottle.measurements))
         self.ui.actual_values_edit.setText(str(
             max(len(head.readings) for head in bottle.heads)))
-        QtGui.QApplication.instance().setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            try:
-                self.ui.readings_view.setModel(BottleModel(bottle))
-                self.setWindowTitle('Bottle %s' % bottle.serial)
-            except (ValueError, IOError) as exc:
-                QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
-                self.close()
-                return
-        finally:
-            QtGui.QApplication.instance().restoreOverrideCursor()
+            self.ui.readings_view.setModel(BottleModel(bottle))
+            self.setWindowTitle('Bottle %s' % bottle.serial)
+        except (ValueError, IOError) as exc:
+            QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
+            self.close()
+            return
 
 
