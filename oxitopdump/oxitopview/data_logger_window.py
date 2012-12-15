@@ -99,20 +99,17 @@ class DataLoggerWindow(QtGui.QWidget):
         super(DataLoggerWindow, self).__init__(None)
         self.ui = uic.loadUi(
             os.path.join(MODULE_DIR, 'data_logger_window.ui'), self)
-        QtGui.QApplication.instance().setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            try:
-                self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
-                self.ui.bottles_view.doubleClicked.connect(
-                    self.bottles_view_double_clicked)
-                self.setWindowTitle(
-                    '%s on %s' % (data_logger.id, data_logger.port.port))
-            except (ValueError, IOError) as exc:
-                QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
-                self.close()
-                return
-        finally:
-            QtGui.QApplication.instance().restoreOverrideCursor()
+            self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
+            self.ui.bottles_view.doubleClicked.connect(
+                self.bottles_view_double_clicked)
+            # TODO What about pressing Enter instead of double clicking?
+            self.setWindowTitle(
+                '%s on %s' % (data_logger.id, data_logger.port.port))
+        except (ValueError, IOError) as exc:
+            QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
+            self.close()
+            return
 
     def bottles_view_double_clicked(self, index):
         # TODO Find existing window and simply activate it if available
