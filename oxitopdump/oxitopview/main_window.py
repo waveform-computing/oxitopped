@@ -27,6 +27,7 @@ from __future__ import (
     )
 
 import os
+import logging
 
 import serial
 from PyQt4 import QtCore, QtGui, uic
@@ -96,13 +97,13 @@ class MainWindow(QtGui.QMainWindow):
 
     def close(self):
         "Called when the window is closed"
-        super(MainWindow, self).close()
         self.settings.beginGroup('main_window')
         try:
             self.settings.setValue('size', self.size())
             self.settings.setValue('position', self.pos())
         finally:
             self.settings.endGroup()
+        super(MainWindow, self).close()
 
     def connect_logger(self):
         "Handler for the File/Connect action"
@@ -111,6 +112,7 @@ class MainWindow(QtGui.QMainWindow):
             window = None
             try:
                 if dialog.com_port == 'TEST':
+                    logging.getLogger().setLevel(logging.DEBUG)
                     serial_class = DummySerial
                 else:
                     serial_class = serial.Serial
