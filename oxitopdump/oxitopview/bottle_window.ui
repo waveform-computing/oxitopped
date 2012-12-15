@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Form</class>
+ <widget class="QWidget" name="Form">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>816</width>
+    <height>651</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QGridLayout" name="gridLayout">
+     <item row="3" column="3">
+      <widget class="QLineEdit" name="desired_values_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="3">
+      <widget class="QLineEdit" name="finish_timestamp_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLineEdit" name="bottle_id_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="bottle_serial_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QLineEdit" name="bottle_volume_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <widget class="QLineEdit" name="measurement_complete_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLabel" name="bottle_serial_label">
+       <property name="text">
+        <string>Bottle Serial</string>
+       </property>
+       <property name="buddy">
+        <cstring>bottle_serial_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="bottle_id_label">
+       <property name="text">
+        <string>Bottle ID</string>
+       </property>
+       <property name="buddy">
+        <cstring>bottle_id_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="measurement_mode_label">
+       <property name="text">
+        <string>Measurement Mode</string>
+       </property>
+       <property name="buddy">
+        <cstring>measurement_mode_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QLabel" name="start_timestamp_label">
+       <property name="text">
+        <string>Start Timestamp</string>
+       </property>
+       <property name="buddy">
+        <cstring>start_timestamp_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QLabel" name="finish_timestamp_label">
+       <property name="text">
+        <string>Finish Timestamp</string>
+       </property>
+       <property name="buddy">
+        <cstring>finish_timestamp_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="2">
+      <widget class="QLabel" name="desired_values_label">
+       <property name="text">
+        <string>Desired no. of Values</string>
+       </property>
+       <property name="buddy">
+        <cstring>desired_values_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QLabel" name="sample_volume_label">
+       <property name="text">
+        <string>Sample Volume</string>
+       </property>
+       <property name="buddy">
+        <cstring>sample_volume_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="2">
+      <widget class="QLabel" name="actual_values_label">
+       <property name="text">
+        <string>Actual no. of Values</string>
+       </property>
+       <property name="buddy">
+        <cstring>actual_values_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QLabel" name="measurement_complete_label">
+       <property name="text">
+        <string>Measurement Complete</string>
+       </property>
+       <property name="buddy">
+        <cstring>measurement_complete_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="bottle_volume_label">
+       <property name="text">
+        <string>Bottle Volume</string>
+       </property>
+       <property name="buddy">
+        <cstring>bottle_volume_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLineEdit" name="measurement_mode_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QLineEdit" name="start_timestamp_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="3">
+      <widget class="QLineEdit" name="actual_values_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLineEdit" name="sample_volume_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QTreeView" name="readings_view">
+      <property name="editTriggers">
+       <set>QAbstractItemView::NoEditTriggers</set>
+      </property>
+      <property name="alternatingRowColors">
+       <bool>true</bool>
+      </property>
+      <property name="uniformRowHeights">
+       <bool>true</bool>
+      </property>
+      <property name="allColumnsShowFocus">
+       <bool>true</bool>
+      </property>
+      <property name="expandsOnDoubleClick">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>bottle_serial_edit</tabstop>
+  <tabstop>bottle_id_edit</tabstop>
+  <tabstop>measurement_mode_edit</tabstop>
+  <tabstop>bottle_volume_edit</tabstop>
+  <tabstop>sample_volume_edit</tabstop>
+  <tabstop>start_timestamp_edit</tabstop>
+  <tabstop>finish_timestamp_edit</tabstop>
+  <tabstop>measurement_complete_edit</tabstop>
+  <tabstop>desired_values_edit</tabstop>
+  <tabstop>actual_values_edit</tabstop>
+  <tabstop>readings_view</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>
