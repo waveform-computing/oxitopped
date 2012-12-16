@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ExportCsvDialog</class>
+ <widget class="QDialog" name="ExportCsvDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>415</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>CSV Export</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>The defaults below are compatible with Microsoft Excel and the vast majority of other applications. Most users should not need to change them.</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignJustify|Qt::AlignVCenter</set>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="csv_settings_group">
+     <property name="title">
+      <string>CSV Settings</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="quote_marks_label">
+        <property name="text">
+         <string>Quotation Marks</string>
+        </property>
+        <property name="buddy">
+         <cstring>quote_marks_combo</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="quote_marks_combo">
+        <item>
+         <property name="text">
+          <string>Double Quotes (&quot;)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Single Quotes (')</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="column_separator_label">
+        <property name="text">
+         <string>Column Separator</string>
+        </property>
+        <property name="buddy">
+         <cstring>column_separator_combo</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="column_separator_combo">
+        <item>
+         <property name="text">
+          <string>Comma (,)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Semi-colon (;)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Space ( )</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Tab</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="line_terminator_label">
+        <property name="text">
+         <string>Line Terminator</string>
+        </property>
+        <property name="buddy">
+         <cstring>line_terminator_combo</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="line_terminator_combo">
+        <item>
+         <property name="text">
+          <string>DOS (CRLF)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>UNIX (LF)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>MacOS (CR)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="quote_behaviour_label">
+        <property name="text">
+         <string>Quotation Behaviour</string>
+        </property>
+        <property name="buddy">
+         <cstring>quote_behaviour_combo</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="quote_behaviour_combo">
+        <item>
+         <property name="text">
+          <string>Quote everything</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Quote non-numeric values</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Quote minimally</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Quote nothing</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <widget class="QCheckBox" name="header_check">
+        <property name="text">
+         <string>Include Header Row</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="timestamps_group">
+     <property name="title">
+      <string>Timestamps</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_3">
+      <property name="fieldGrowthPolicy">
+       <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+      </property>
+      <item row="0" column="0">
+       <widget class="QLabel" name="timestamp_format_label">
+        <property name="text">
+         <string>Format</string>
+        </property>
+        <property name="buddy">
+         <cstring>timestamp_format_edit</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="timestamp_output_label">
+        <property name="text">
+         <string>Output</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="timestamp_example_label">
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QLineEdit" name="timestamp_format_edit">
+          <property name="text">
+           <string>%Y-%m-%d %H:%M:%S</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="timestamp_default_button">
+          <property name="text">
+           <string>Default</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="button_box">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>quote_marks_combo</tabstop>
+  <tabstop>column_separator_combo</tabstop>
+  <tabstop>line_terminator_combo</tabstop>
+  <tabstop>quote_behaviour_combo</tabstop>
+  <tabstop>header_check</tabstop>
+  <tabstop>timestamp_format_edit</tabstop>
+  <tabstop>timestamp_default_button</tabstop>
+  <tabstop>button_box</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>button_box</sender>
+   <signal>accepted()</signal>
+   <receiver>ExportCsvDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>227</x>
+     <y>358</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>button_box</sender>
+   <signal>rejected()</signal>
+   <receiver>ExportCsvDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>295</x>
+     <y>364</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

@@ -84,6 +84,10 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.connect_action.triggered.connect(self.connect_logger)
         self.ui.close_action.setIcon(get_icon('window-close'))
         self.ui.close_action.triggered.connect(self.close_file)
+        self.ui.export_action.setIcon(get_icon('x-office-document'))
+        self.ui.export_action.triggered.connect(self.export_file)
+        self.ui.refresh_action.setIcon(get_icon('view-refresh'))
+        self.ui.refresh_action.triggered.connect(self.refresh_window)
         self.ui.status_bar_action.triggered.connect(self.toggle_status)
         self.ui.view_menu.aboutToShow.connect(self.update_status)
 
@@ -109,6 +113,8 @@ class MainWindow(QtGui.QMainWindow):
         "Handler for the File/Connect action"
         dialog = ConnectDialog(self)
         if dialog.exec_():
+            # TODO Check a sub-window for this com-port isn't already open. If
+            # it is, switch to it
             window = None
             try:
                 if dialog.com_port == 'TEST':
@@ -131,6 +137,14 @@ class MainWindow(QtGui.QMainWindow):
     def close_file(self):
         "Handler for the File/Close action"
         self.ui.mdi_area.currentSubWindow().close()
+
+    def export_file(self):
+        "Handler for the File/Export action"
+        self.sub_widget.export_file()
+
+    def refresh_window(self):
+        "Handler for the View/Refresh action"
+        self.sub_widget.refresh_window()
 
     def update_status(self):
         "Called to update the status_bar_action check state"
@@ -170,4 +184,5 @@ Project homepage is at
     def update_actions(self):
         "Called to update the main window actions"
         self.ui.close_action.setEnabled(self.sub_widget is not None)
-        #self.ui.export_document_action.setEnabled(self.sub_widget is not None)
+        self.ui.export_action.setEnabled(self.sub_widget is not None)
+        self.ui.refresh_action.setEnabled(self.sub_widget is not None)

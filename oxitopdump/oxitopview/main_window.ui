@@ -106,6 +106,9 @@
    </property>
   </action>
   <action name="export_action">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>&amp;Export...</string>
    </property>
@@ -143,6 +146,9 @@
    </property>
   </action>
   <action name="refresh_action">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>&amp;Refresh</string>
    </property>
@@ -178,6 +184,9 @@
    </property>
   </action>
   <action name="close_action">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>&amp;Close</string>
    </property>

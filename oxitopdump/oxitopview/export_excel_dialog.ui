@@ -1,48 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ConnectDialog</class>
- <widget class="QDialog" name="ConnectDialog">
+ <class>ExportExcelDialog</class>
+ <widget class="QDialog" name="ExportExcelDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>329</width>
-    <height>84</height>
+    <width>400</width>
+    <height>137</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Connect to Data Logger</string>
-  </property>
-  <property name="modal">
-   <bool>true</bool>
+   <string>Excel Export</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QWidget" name="widget" native="true">
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Excel Settings</string>
+     </property>
      <layout class="QFormLayout" name="formLayout">
-      <property name="horizontalSpacing">
-       <number>6</number>
-      </property>
-      <property name="margin">
-       <number>0</number>
-      </property>
-      <item row="1" column="1">
-       <widget class="QComboBox" name="com_port_combo">
-        <property name="editable">
-         <bool>true</bool>
-        </property>
-        <property name="maxCount">
-         <number>64</number>
+      <item row="0" column="0" colspan="2">
+       <widget class="QCheckBox" name="header_check">
+        <property name="text">
+         <string>Include Header Row</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="com_port_label">
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="row_colors_check">
         <property name="text">
-         <string>COM &amp;Port</string>
-        </property>
-        <property name="buddy">
-         <cstring>com_port_combo</cstring>
+         <string>Alternate Row Colors</string>
         </property>
        </widget>
       </item>
@@ -50,7 +38,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QDialogButtonBox" name="button_box">
+    <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
@@ -62,20 +50,21 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>com_port_combo</tabstop>
-  <tabstop>button_box</tabstop>
+  <tabstop>header_check</tabstop>
+  <tabstop>row_colors_check</tabstop>
+  <tabstop>buttonBox</tabstop>
  </tabstops>
  <resources/>
  <connections>
   <connection>
-   <sender>button_box</sender>
+   <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>ConnectDialog</receiver>
+   <receiver>ExportExcelDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>257</x>
-     <y>92</y>
+     <x>248</x>
+     <y>254</y>
     </hint>
     <hint type="destinationlabel">
      <x>157</x>
@@ -84,14 +73,14 @@
    </hints>
   </connection>
   <connection>
-   <sender>button_box</sender>
+   <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>ConnectDialog</receiver>
+   <receiver>ExportExcelDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>314</x>
-     <y>92</y>
+     <x>316</x>
+     <y>260</y>
     </hint>
     <hint type="destinationlabel">
      <x>286</x>

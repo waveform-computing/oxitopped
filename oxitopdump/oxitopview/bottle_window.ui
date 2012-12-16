@@ -16,41 +16,6 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="3" column="3">
-      <widget class="QLineEdit" name="desired_values_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="3">
-      <widget class="QLineEdit" name="finish_timestamp_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QLineEdit" name="bottle_id_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QLineEdit" name="bottle_serial_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QLineEdit" name="bottle_volume_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
      <item row="2" column="3">
       <widget class="QLineEdit" name="measurement_complete_edit">
        <property name="readOnly">
@@ -68,13 +33,10 @@
        </property>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="bottle_id_label">
-       <property name="text">
-        <string>Bottle ID</string>
-       </property>
-       <property name="buddy">
-        <cstring>bottle_id_edit</cstring>
+     <item row="1" column="3">
+      <widget class="QLineEdit" name="finish_timestamp_edit">
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -88,23 +50,20 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="2">
-      <widget class="QLabel" name="start_timestamp_label">
-       <property name="text">
-        <string>Start Timestamp</string>
-       </property>
-       <property name="buddy">
-        <cstring>start_timestamp_edit</cstring>
+     <item row="1" column="1">
+      <widget class="QLineEdit" name="bottle_id_edit">
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
-     <item row="1" column="2">
-      <widget class="QLabel" name="finish_timestamp_label">
+     <item row="1" column="0">
+      <widget class="QLabel" name="bottle_id_label">
        <property name="text">
-        <string>Finish Timestamp</string>
+        <string>Bottle ID</string>
        </property>
        <property name="buddy">
-        <cstring>finish_timestamp_edit</cstring>
+        <cstring>bottle_id_edit</cstring>
        </property>
       </widget>
      </item>
@@ -165,6 +124,47 @@
        </property>
       </widget>
      </item>
+     <item row="3" column="3">
+      <widget class="QLineEdit" name="desired_values_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="bottle_serial_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QLineEdit" name="bottle_volume_edit">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QLabel" name="start_timestamp_label">
+       <property name="text">
+        <string>Start Timestamp</string>
+       </property>
+       <property name="buddy">
+        <cstring>start_timestamp_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QLabel" name="finish_timestamp_label">
+       <property name="text">
+        <string>Finish Timestamp</string>
+       </property>
+       <property name="buddy">
+        <cstring>finish_timestamp_edit</cstring>
+       </property>
+      </widget>
+     </item>
      <item row="0" column="3">
       <widget class="QLineEdit" name="start_timestamp_edit">
        <property name="readOnly">
@@ -185,6 +185,26 @@
         <bool>true</bool>
        </property>
       </widget>
+     </item>
+     <item row="5" column="2" colspan="2">
+      <widget class="QCheckBox" name="absolute_check">
+       <property name="text">
+        <string>Show absolute readings</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="dilution_label">
+       <property name="text">
+        <string>Dilution</string>
+       </property>
+       <property name="buddy">
+        <cstring>dilution_edit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="1">
+      <widget class="QLineEdit" name="dilution_edit"/>
      </item>
     </layout>
    </item>
@@ -226,11 +246,13 @@
   <tabstop>measurement_mode_edit</tabstop>
   <tabstop>bottle_volume_edit</tabstop>
   <tabstop>sample_volume_edit</tabstop>
+  <tabstop>dilution_edit</tabstop>
   <tabstop>start_timestamp_edit</tabstop>
   <tabstop>finish_timestamp_edit</tabstop>
   <tabstop>measurement_complete_edit</tabstop>
   <tabstop>desired_values_edit</tabstop>
   <tabstop>actual_values_edit</tabstop>
+  <tabstop>absolute_check</tabstop>
   <tabstop>readings_view</tabstop>
  </tabstops>
  <resources/>

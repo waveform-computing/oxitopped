@@ -132,6 +132,16 @@ class Bottle(object):
         self.dilution = dilution
         self.heads = []
 
+    @property
+    def mode_string(self):
+        return (
+            'Pressure %dd' % (self.finish - self.start).days
+                if self.mode == 'pressure' else
+            'BOD'
+                if self.mode == 'bod' else
+            'Unknown'
+            )
+
     @classmethod
     def from_string(cls, data, logger=None):
         data = data.decode(ENCODING).split('\r')
@@ -231,6 +241,14 @@ class Bottle(object):
             self.sample_volume = new.sample_volume
             self.dilution = new.dilution
             self.heads = new.heads
+            # Fix up the bottle references in the new heads list (they'll all
+            # point to new when they should point to self as new is about to
+            # get thrown away when we return)
+            for head in self.heads:
+                head.bottle = self
+        else:
+            raise RuntimeError(
+                'Cannot refresh a bottle with no associated data logger')
 
 
 class BottleHead(object):
@@ -281,6 +299,13 @@ class BottleHead(object):
             # identifiers as specified, and that the reading count matches
             self._readings = BottleReadings.from_string(self, data)
         return self._readings
+
+    def refresh(self):
+        if self.bottle is not None and self.bottle.logger is not None:
+            self._readings = None
+        else:
+            raise RuntimeError(
+                'Cannot refresh a bottle head with no associated data logger')
 
 
 class BottleReadings(object):

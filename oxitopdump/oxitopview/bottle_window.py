@@ -26,27 +26,106 @@ from __future__ import (
     division,
     )
 
+import io
 import os
 from datetime import datetime
 
 from PyQt4 import QtCore, QtGui, uic
 
+from oxitopdump.oxitopview.exporter import BaseExporter
+from oxitopdump.oxitopview.export_csv_dialog import ExportCsvDialog
+from oxitopdump.oxitopview.export_excel_dialog import ExportExcelDialog
+
+# XXX Py3
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+
+class BottleWindow(QtGui.QWidget):
+    "Document window for displaying a particular bottle"
+
+    def __init__(self, bottle):
+        super(BottleWindow, self).__init__(None)
+        self.ui = uic.loadUi(
+            os.path.join(MODULE_DIR, 'bottle_window.ui'), self)
+        self.ui.readings_view.setModel(BottleModel(bottle))
+        self.refresh_edits()
+        self.setWindowTitle('Bottle %s' % bottle.serial)
+        self.exporter = BottleExporter(self)
+        self.ui.absolute_check.toggled.connect(self.absolute_toggled)
+
+    @property
+    def bottle(self):
+        return self.ui.readings_view.model().bottle
+
+    def refresh_window(self):
+        "Forces the list to be re-read from the data logger"
+        model = self.ui.readings_view.model()
+        first = model.index(0, 0)
+        last = model.index(model.rowCount() - 1, model.columnCount() - 1)
+        model.bottle.refresh()
+        self.refresh_edits()
+        model.dataChanged.emit(first, last)
+
+    def refresh_edits(self):
+        "Refresh all the edit controls from the bottle"
+        bottle = self.ui.readings_view.model().bottle
+        self.ui.bottle_serial_edit.setText(bottle.serial)
+        self.ui.bottle_id_edit.setText(str(bottle.id))
+        self.ui.measurement_mode_edit.setText(bottle.mode_string)
+        self.ui.bottle_volume_edit.setText('%.1fml' % bottle.bottle_volume)
+        self.ui.sample_volume_edit.setText('%.1fml' % bottle.sample_volume)
+        self.ui.dilution_edit.setText('1+%d' % bottle.dilution)
+        self.ui.start_timestamp_edit.setText(bottle.start.strftime('%c'))
+        self.ui.finish_timestamp_edit.setText(bottle.finish.strftime('%c'))
+        self.ui.measurement_complete_edit.setText(
+            'Yes' if bottle.finish < datetime.now() else 'No')
+        self.ui.desired_values_edit.setText(str(bottle.measurements))
+        self.ui.actual_values_edit.setText(str(
+            max(len(head.readings) for head in bottle.heads)))
+
+    def export_file(self):
+        "Export the readings to a user-specified filename"
+        self.exporter.export_file()
+
+    def absolute_toggled(self, checked):
+        "Handler for the toggled signal of the absolute_check control"
+        self.ui.readings_view.model().delta = not checked
 
 
 class BottleModel(QtCore.QAbstractTableModel):
     def __init__(self, bottle, delta=True):
         super(BottleModel, self).__init__()
         self.bottle = bottle
-        self.delta = delta
+        self._delta = delta
 
-    def rowCount(self, parent):
+    def _get_delta(self):
+        return self._delta
+
+    def _set_delta(self, value):
+        if value != self._delta:
+            self._delta = bool(value)
+            first = self.index(0, 3)
+            last = self.index(self.rowCount() - 1, self.columnCount() - 1)
+            self.dataChanged.emit(first, last)
+
+    delta = property(_get_delta, _set_delta)
+
+    def rowCount(self, parent=None):
+        if parent is None:
+            parent = QtCore.QModelIndex()
         if parent.isValid():
             return 0
         return max(len(head.readings) for head in self.bottle.heads)
 
-    def columnCount(self, parent):
+    def columnCount(self, parent=None):
+        if parent is None:
+            parent = QtCore.QModelIndex()
         if parent.isValid():
             return 0
         return len(self.bottle.heads) + 3
@@ -65,15 +144,7 @@ class BottleModel(QtCore.QAbstractTableModel):
         else:
             head = self.bottle.heads[index.column() - 3]
             if index.row() < len(head.readings):
-                if self.delta:
-                    if index.row() == 0:
-                        return '0'
-                    else:
-                        return str(
-                            head.readings[index.row()] -
-                            head.readings[0])
-                else:
-                    return str(head.readings[index.row()])
+                return str(head.readings[index.row()] - (head.readings[0] if self.delta else 0))
             else:
                 return ''
 
@@ -83,7 +154,7 @@ class BottleModel(QtCore.QAbstractTableModel):
                 'No.',
                 'Timestamp',
                 'Offset',
-                ] + [head.serial for head in self.bottle.heads]
+                ] + ['Head %s' % head.serial for head in self.bottle.heads]
             return columns[section]
         elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
             return section
@@ -91,38 +162,142 @@ class BottleModel(QtCore.QAbstractTableModel):
             return None
 
 
-class BottleWindow(QtGui.QWidget):
-    "Document window for displaying a particular bottle"
+class BottleExporter(BaseExporter):
+    "Data exporter class for bottle readings"
 
-    def __init__(self, bottle):
-        super(BottleWindow, self).__init__(None)
-        print(bottle.interval)
-        self.ui = uic.loadUi(
-            os.path.join(MODULE_DIR, 'bottle_window.ui'), self)
-        self.ui.bottle_serial_edit.setText(bottle.serial)
-        self.ui.bottle_id_edit.setText(str(bottle.id))
-        self.ui.measurement_mode_edit.setText(
-            'Pressure %dd' % (bottle.finish - bottle.start).days
-                if bottle.mode == 'pressure' else
-            'BOD'
-                if bottle.mode == 'bod' else
-            'Unknown'
-            )
-        self.ui.bottle_volume_edit.setText('%.1fml' % bottle.bottle_volume)
-        self.ui.sample_volume_edit.setText('%.1fml' % bottle.sample_volume)
-        self.ui.start_timestamp_edit.setText(bottle.start.strftime('%c'))
-        self.ui.finish_timestamp_edit.setText(bottle.finish.strftime('%c'))
-        self.ui.measurement_complete_edit.setText = (
-            'Yes' if bottle.finish < datetime.now() else 'No')
-        self.ui.desired_values_edit.setText(str(bottle.measurements))
-        self.ui.actual_values_edit.setText(str(
-            max(len(head.readings) for head in bottle.heads)))
-        try:
-            self.ui.readings_view.setModel(BottleModel(bottle))
-            self.setWindowTitle('Bottle %s' % bottle.serial)
-        except (ValueError, IOError) as exc:
-            QtGui.QMessageBox.critical(self, self.tr('Error'), str(exc))
-            self.close()
-            return
+    def __init__(self, parent):
+        super(BottleExporter, self).__init__(parent)
+        self.title = self.parent.tr('Export bottle readings')
+
+    def export_csv(self, filename):
+        "Export the bottle readings to a CSV file"
+        dialog = ExportCsvDialog(self.parent)
+        if dialog.exec_():
+            import csv
+            bottle = self.parent.bottle
+            delta = self.parent.ui.readings_view.model().delta
+            with io.open(filename, 'wb') as output_file:
+                writer = csv.writer(output_file,
+                    delimiter=dialog.delimiter,
+                    lineterminator=dialog.lineterminator,
+                    quotechar=dialog.quotechar,
+                    quoting=dialog.quoting,
+                    doublequote=csv.excel.doublequote)
+                if dialog.header_row:
+                    writer.writerow([
+                        'No.',
+                        'Timestamp',
+                        'Offset',
+                        ] + [
+                        'Head %s' % head.serial
+                        for head in bottle.heads
+                        ])
+                for reading in range(
+                        max(len(head.readings)
+                        for head in bottle.heads)):
+                    row = [
+                        reading,
+                        (bottle.start + (bottle.interval * reading)).strftime(dialog.timestamp_format),
+                        str(bottle.interval * reading),
+                        ] + [
+                        head.readings[reading] - (head.readings[0] if delta else 0)
+                            if reading < len(head.readings) else None
+                        for head in bottle.heads
+                        ]
+                    writer.writerow(row)
+
+    def export_excel(self, filename):
+        "Export the bottle list to an Excel file"
+        dialog = ExportExcelDialog(self.parent)
+        if dialog.exec_():
+            import xlwt
+            bottle = self.parent.bottle
+            delta = self.parent.ui.readings_view.model().delta
+            header_style = xlwt.easyxf('font: bold on')
+            even_default_style = xlwt.easyxf('')
+            even_text_style = xlwt.easyxf(num_format_str='@')
+            even_date_style = xlwt.easyxf(num_format_str='ddd d mmm yyyy hh:mm:ss')
+            odd_default_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue')
+            odd_text_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue', num_format_str='@')
+            odd_date_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue', num_format_str='ddd d mmm yyyy hh:mm:ss')
+            workbook = xlwt.Workbook()
+            # Create the bottle details sheet
+            worksheet = workbook.add_sheet('Bottle %s' % bottle.serial)
+            data = (
+                ('Bottle Serial',         bottle.serial),
+                ('Bottle ID',             bottle.id),
+                ('Bottle Volume',         bottle.bottle_volume),
+                ('Sample Volume',         bottle.sample_volume),
+                ('Dilution',              '1+%d' % bottle.dilution),
+                ('Measurement Mode',      bottle.mode_string),
+                ('Measurement Complete',  bottle.finish < datetime.now()),
+                ('Start Timestamp',       bottle.start),
+                ('Finish Timestamp',      bottle.finish),
+                ('Desired no. of Values', bottle.measurements),
+                ('Actual no. of Values',  max(len(head.readings) for head in bottle.heads)),
+                )
+            for row, row_data in enumerate(data):
+                for col, value in enumerate(row_data):
+                    if col == 0:
+                        worksheet.write(row, col, value, header_style)
+                    elif isinstance(value, datetime):
+                        worksheet.write(row, col, value, even_date_style)
+                    elif isinstance(value, basestring):
+                        worksheet.write(row, col, value, even_text_style)
+                    else:
+                        worksheet.write(row, col, value, even_default_style)
+            worksheet.col(0).width = 22 * 256
+            worksheet.col(1).width = 24 * 256
+            # Create the bottle readings sheet
+            worksheet = workbook.add_sheet('Readings')
+            row = 0
+            if dialog.header_row:
+                data = [
+                    'No.',
+                    'Timestamp',
+                    'Offset',
+                    ] + [
+                    'Head %s' % head.serial
+                    for head in bottle.heads
+                    ]
+                for col, value in enumerate(data):
+                    worksheet.write(row, col, value, header_style)
+                row += 1
+                # Freeze the header row at the top of the sheet
+                worksheet.panes_frozen = True
+                worksheet.horz_split_pos = 1
+            for reading in range(
+                    max(len(head.readings)
+                    for head in bottle.heads)):
+                if dialog.row_colors:
+                    (default_style, text_style, date_style) = [
+                        (even_default_style, even_text_style, even_date_style),
+                        (odd_default_style, odd_text_style, odd_date_style)
+                        ][row % 2]
+                else:
+                    (default_style, text_style, date_style) = (
+                        even_default_style, even_text_style, even_date_style
+                        )
+                data = [
+                    reading,
+                    bottle.start + bottle.interval * reading,
+                    str(bottle.interval * reading),
+                    ] + [
+                    head.readings[reading] - (head.readings[0] if delta else 0)
+                        if reading < len(head.readings) else None
+                    for head in bottle.heads
+                    ]
+                for col, value in enumerate(data):
+                    if isinstance(value, datetime):
+                        worksheet.write(row, col, value, date_style)
+                    elif isinstance(value, basestring):
+                        worksheet.write(row, col, value, text_style)
+                    else:
+                        worksheet.write(row, col, value, default_style)
+                row += 1
+            worksheet.col(0).width = 4 * 256
+            worksheet.col(1).width = 24 * 256
+            worksheet.col(2).width = 24 * 256
+            workbook.save(filename)
 
 
