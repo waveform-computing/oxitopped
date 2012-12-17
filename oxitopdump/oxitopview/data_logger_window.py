@@ -54,6 +54,8 @@ class DataLoggerWindow(QtGui.QWidget):
         self.ui = uic.loadUi(
             os.path.join(MODULE_DIR, 'data_logger_window.ui'), self)
         self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
+        for col in range(self.ui.bottles_view.model().columnCount()):
+            self.ui.bottles_view.resizeColumnToContents(col)
         self.ui.bottles_view.doubleClicked.connect(
             self.bottles_view_double_clicked)
         # TODO What about pressing Enter instead of double clicking?
@@ -145,8 +147,6 @@ class DataLoggerModel(QtCore.QAbstractTableModel):
                 ][section]
         elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
             return section + 1
-        else:
-            return None
 
 
 class DataLoggerExporter(BaseExporter):

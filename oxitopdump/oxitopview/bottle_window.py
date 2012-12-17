@@ -30,6 +30,7 @@ import io
 import os
 from datetime import datetime
 
+import numpy as np
 from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.exporter import BaseExporter
@@ -42,8 +43,31 @@ try:
 except NameError:
     basestring = str
 
+try:
+    import matplotlib
+    from matplotlib.dates import DateFormatter
+    from matplotlib.figure import Figure
+    from matplotlib.colors import colorConverter
+    from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+    from collections import deque
+    from itertools import islice
+except ImportError:
+    matplotlib = None
+
 
 MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def moving_average(iterable, n):
+    "Calculates a moving average of iterable over n elements"
+    it = iter(iterable)
+    d = deque(islice(it, n - 1))
+    d.appendleft(0.0)
+    s = sum(d)
+    for elem in it:
+        s += elem - d.popleft()
+        d.append(elem)
+        yield s / n
 
 
 class BottleWindow(QtGui.QWidget):
@@ -54,10 +78,23 @@ class BottleWindow(QtGui.QWidget):
         self.ui = uic.loadUi(
             os.path.join(MODULE_DIR, 'bottle_window.ui'), self)
         self.ui.readings_view.setModel(BottleModel(bottle))
+        for col in range(self.ui.readings_view.model().columnCount()):
+            self.ui.readings_view.resizeColumnToContents(col)
+        self.exporter = BottleExporter(self)
         self.refresh_edits()
         self.setWindowTitle('Bottle %s' % bottle.serial)
-        self.exporter = BottleExporter(self)
         self.ui.absolute_check.toggled.connect(self.absolute_toggled)
+        self.ui.average_spin.valueChanged.connect(self.average_changed)
+        if matplotlib:
+            self.figure = Figure(figsize=(5.0, 5.0), facecolor='w', edgecolor='w')
+            self.canvas = FigureCanvas(self.figure)
+            self.axes = self.figure.add_axes((0.1, 0.1, 0.8, 0.8))
+            self.ui.splitter.addWidget(self.canvas)
+            self.redraw_timer = QtCore.QTimer()
+            self.redraw_timer.setInterval(200) # msecs
+            self.redraw_timer.timeout.connect(self.redraw_timeout)
+            self.ui.splitter.splitterMoved.connect(self.splitter_moved)
+            self.invalidate_graph()
 
     @property
     def bottle(self):
@@ -78,8 +115,8 @@ class BottleWindow(QtGui.QWidget):
         self.ui.bottle_serial_edit.setText(bottle.serial)
         self.ui.bottle_id_edit.setText(str(bottle.id))
         self.ui.measurement_mode_edit.setText(bottle.mode_string)
-        self.ui.bottle_volume_edit.setText('%.1fml' % bottle.bottle_volume)
-        self.ui.sample_volume_edit.setText('%.1fml' % bottle.sample_volume)
+        self.ui.bottle_volume_spin.setValue(bottle.bottle_volume)
+        self.ui.sample_volume_spin.setValue(bottle.sample_volume)
         self.ui.dilution_edit.setText('1+%d' % bottle.dilution)
         self.ui.start_timestamp_edit.setText(bottle.start.strftime('%c'))
         self.ui.finish_timestamp_edit.setText(bottle.finish.strftime('%c'))
@@ -96,6 +133,58 @@ class BottleWindow(QtGui.QWidget):
     def absolute_toggled(self, checked):
         "Handler for the toggled signal of the absolute_check control"
         self.ui.readings_view.model().delta = not checked
+        if matplotlib:
+            self.invalidate_graph()
+
+    def average_changed(self, value):
+        "Handler for the valueChanged signal of the average_spin control"
+        if matplotlib:
+            self.invalidate_graph()
+
+    def splitter_moved(self, pos, index):
+        "Handler for the moved signal of the splitter control"
+        self.invalidate_graph()
+
+    def invalidate_graph(self):
+        "Invalidate the matplotlib graph on a timer"
+        if self.redraw_timer.isActive():
+            self.redraw_timer.stop()
+        self.redraw_timer.start()
+
+    def redraw_timeout(self):
+        "Handler for the redraw_timer's timeout event"
+        self.redraw_timer.stop()
+        self.redraw_figure()
+
+    def redraw_figure(self):
+        "Called to redraw the channel image"
+        # Configure the x and y axes appearance
+        self.axes.clear()
+        self.axes.set_frame_on(True)
+        self.axes.set_axis_on()
+        self.axes.grid(True)
+        self.axes.set_xlabel(self.tr('Time'))
+        if self.ui.absolute_check.isChecked():
+            self.axes.set_ylabel(self.tr('Pressure (hPa)'))
+        else:
+            self.axes.set_ylabel(self.tr('Delta Pressure (hPa)'))
+        m = self.ui.average_spin.value()
+        for head_ix, head in enumerate(self.bottle.heads):
+            self.axes.plot_date(
+                x=[
+                    self.bottle.start + (self.bottle.interval * (reading + m - 1))
+                    for reading in range(len(head.readings) - (m - 1))
+                    ],
+                y=list(moving_average((
+                    reading - (head.readings[0] if self.ui.readings_view.model().delta else 0)
+                    for reading in head.readings
+                    ), m)),
+                fmt='%s-' % matplotlib.rcParams['axes.color_cycle'][
+                    head_ix % len(matplotlib.rcParams['axes.color_cycle'])]
+                )
+        self.axes.xaxis.set_major_formatter(DateFormatter('%d %b'))
+        self.axes.autoscale_view()
+        self.canvas.draw()
 
 
 class BottleModel(QtCore.QAbstractTableModel):
@@ -156,10 +245,13 @@ class BottleModel(QtCore.QAbstractTableModel):
                 'Offset',
                 ] + ['Head %s' % head.serial for head in self.bottle.heads]
             return columns[section]
+        elif (orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.ForegroundRole
+                and section >= 3 and matplotlib):
+            return QtGui.QBrush(QtGui.QColor(*(i * 255 for i in colorConverter.to_rgb(
+                matplotlib.rcParams['axes.color_cycle'][
+                    (section - 3) % len(matplotlib.rcParams['axes.color_cycle'])]))))
         elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
             return section
-        else:
-            return None
 
 
 class BottleExporter(BaseExporter):

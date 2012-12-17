@@ -50,19 +50,10 @@
      <string>&amp;File</string>
     </property>
     <addaction name="connect_action"/>
+    <addaction name="export_action"/>
     <addaction name="close_action"/>
     <addaction name="separator"/>
-    <addaction name="export_action"/>
-    <addaction name="separator"/>
     <addaction name="quit_action"/>
-   </widget>
-   <widget class="QMenu" name="edit_menu">
-    <property name="title">
-     <string>&amp;Edit</string>
-    </property>
-    <addaction name="copy_action"/>
-    <addaction name="separator"/>
-    <addaction name="select_all_action"/>
    </widget>
    <widget class="QMenu" name="view_menu">
     <property name="title">
@@ -80,7 +71,6 @@
     <addaction name="about_qt_action"/>
    </widget>
    <addaction name="file_menu"/>
-   <addaction name="edit_menu"/>
    <addaction name="view_menu"/>
    <addaction name="help_menu"/>
   </widget>
@@ -96,6 +86,9 @@
     <bool>false</bool>
    </attribute>
    <addaction name="connect_action"/>
+   <addaction name="export_action"/>
+   <addaction name="separator"/>
+   <addaction name="quit_action"/>
   </widget>
   <action name="connect_action">
    <property name="text">

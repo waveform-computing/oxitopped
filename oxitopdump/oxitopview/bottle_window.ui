@@ -15,7 +15,7 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QGridLayout" name="gridLayout">
+    <layout class="QGridLayout" name="header_layout">
      <item row="2" column="3">
       <widget class="QLineEdit" name="measurement_complete_edit">
        <property name="readOnly">
@@ -82,9 +82,6 @@
        <property name="text">
         <string>Sample Volume</string>
        </property>
-       <property name="buddy">
-        <cstring>sample_volume_edit</cstring>
-       </property>
       </widget>
      </item>
      <item row="4" column="2">
@@ -112,9 +109,6 @@
        <property name="text">
         <string>Bottle Volume</string>
        </property>
-       <property name="buddy">
-        <cstring>bottle_volume_edit</cstring>
-       </property>
       </widget>
      </item>
      <item row="2" column="1">
@@ -133,13 +127,6 @@
      </item>
      <item row="0" column="1">
       <widget class="QLineEdit" name="bottle_serial_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QLineEdit" name="bottle_volume_edit">
        <property name="readOnly">
         <bool>true</bool>
        </property>
@@ -179,20 +166,6 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="1">
-      <widget class="QLineEdit" name="sample_volume_edit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="2" colspan="2">
-      <widget class="QCheckBox" name="absolute_check">
-       <property name="text">
-        <string>Show absolute readings</string>
-       </property>
-      </widget>
-     </item>
      <item row="5" column="0">
       <widget class="QLabel" name="dilution_label">
        <property name="text">
@@ -205,6 +178,65 @@
      </item>
      <item row="5" column="1">
       <widget class="QLineEdit" name="dilution_edit"/>
+     </item>
+     <item row="5" column="2">
+      <widget class="QLabel" name="average_label">
+       <property name="text">
+        <string>Moving average over</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="3">
+      <widget class="QSpinBox" name="average_spin">
+       <property name="suffix">
+        <string> points</string>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>50</number>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="2" colspan="2">
+      <widget class="QCheckBox" name="absolute_check">
+       <property name="text">
+        <string>Show absolute readings</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QDoubleSpinBox" name="bottle_volume_spin">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="buttonSymbols">
+        <enum>QAbstractSpinBox::NoButtons</enum>
+       </property>
+       <property name="suffix">
+        <string> ml</string>
+       </property>
+       <property name="decimals">
+        <number>1</number>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QDoubleSpinBox" name="sample_volume_spin">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="buttonSymbols">
+        <enum>QAbstractSpinBox::NoButtons</enum>
+       </property>
+       <property name="suffix">
+        <string> ml</string>
+       </property>
+       <property name="decimals">
+        <number>1</number>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
@@ -244,14 +276,15 @@
   <tabstop>bottle_serial_edit</tabstop>
   <tabstop>bottle_id_edit</tabstop>
   <tabstop>measurement_mode_edit</tabstop>
-  <tabstop>bottle_volume_edit</tabstop>
-  <tabstop>sample_volume_edit</tabstop>
+  <tabstop>bottle_volume_spin</tabstop>
+  <tabstop>sample_volume_spin</tabstop>
   <tabstop>dilution_edit</tabstop>
   <tabstop>start_timestamp_edit</tabstop>
   <tabstop>finish_timestamp_edit</tabstop>
   <tabstop>measurement_complete_edit</tabstop>
   <tabstop>desired_values_edit</tabstop>
   <tabstop>actual_values_edit</tabstop>
+  <tabstop>average_spin</tabstop>
   <tabstop>absolute_check</tabstop>
   <tabstop>readings_view</tabstop>
  </tabstops>

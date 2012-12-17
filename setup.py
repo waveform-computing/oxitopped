@@ -44,7 +44,7 @@ REQUIRES = [
 
 EXTRA_REQUIRES = {
     'XLS':        ['xlwt'],
-    'GUI':        ['pyqt'],
+    'GUI':        ['pyqt', 'matplotlib', 'numpy'],
     }
 
 CLASSIFIERS = [
