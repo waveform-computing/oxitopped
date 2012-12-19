@@ -29,12 +29,11 @@ from __future__ import (
 import os
 import logging
 
-import serial
 from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.connect_dialog import ConnectDialog
 from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
-from oxitopdump.bottles import DataLogger, DummySerial
+from oxitopdump.bottles import DataLogger
 
 
 
@@ -113,22 +112,15 @@ class MainWindow(QtGui.QMainWindow):
         "Handler for the File/Connect action"
         dialog = ConnectDialog(self)
         if dialog.exec_():
-            # TODO Check a sub-window for this com-port isn't already open. If
-            # it is, switch to it
+            for window in self.ui.mdi_area.subWindowList():
+                if isinstance(window.widget(), DataLoggerWindow) and (
+                        window.widget().data_logger.port.port == dialog.com_port):
+                    self.ui.mdi_area.setActiveSubWindow(window)
+                    return
             window = None
             try:
-                if dialog.com_port == 'TEST':
-                    logging.getLogger().setLevel(logging.DEBUG)
-                    serial_class = DummySerial
-                else:
-                    serial_class = serial.Serial
                 window = self.ui.mdi_area.addSubWindow(
-                    DataLoggerWindow(DataLogger(serial_class(
-                        dialog.com_port,
-                        bytesize=serial.EIGHTBITS,
-                        parity=serial.PARITY_NONE,
-                        stopbits=serial.STOPBITS_ONE,
-                        rtscts=True, timeout=5))))
+                    DataLoggerWindow(DataLogger(dialog.com_port)))
                 window.show()
             except KeyboardInterrupt:
                 if window is not None:
