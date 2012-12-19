@@ -406,6 +406,7 @@ class DataLogger(object):
             timeout=timeout,
             rtscts=True)
         self.retries = retries
+        self._progress_start = self._progress_update = self._progress_finish = None
         if progress is not None:
             (   self._progress_start,
                 self._progress_update,
