@@ -62,7 +62,8 @@ CLASSIFIERS = [
 
 ENTRY_POINTS = {
     'console_scripts': [
-        'oxitopdump = oxitopdump:main',
+        'oxitoplist = oxitopdump.oxitoplist:main',
+        'oxitopdump = oxitopdump.oxitopdump:main',
     ],
     'gui_scripts': [
         'oxitopview = oxitopdump.oxitopview:main',
