@@ -142,6 +142,10 @@ class Bottle(object):
             'Unknown'
             )
 
+    @property
+    def completed(self):
+        return 'Yes' if self.finish < datetime.now() else 'No'
+
     @classmethod
     def from_string(cls, data, logger=None):
         data = data.decode(ENCODING).split('\r')
@@ -294,7 +298,8 @@ class BottleHead(object):
     @property
     def readings(self):
         if self._readings is None and self.bottle.logger is not None:
-            data = self.bottle.logger._GMSK(self.bottle.serial, self.serial)
+            data = self.bottle.logger._GMSK(
+                ''.join(self.bottle.serial.split('-', 1)), self.serial)
             # XXX Check the first line includes the correct bottle and head
             # identifiers as specified, and that the reading count matches
             self._readings = BottleReadings.from_string(self, data)
@@ -375,22 +380,43 @@ class BottleReadings(object):
 
 class DataLogger(object):
     """
-    Interfaces with the serial port of an OxiTop OC110 Data Logger and
-    communicates with it when certain properties are queried for bottle or
-    head information.
+    Interfaces with the serial port of an OxiTop Data Logger and communicates
+    with it when certain properties are queried for bottle or head information.
 
-    `port` : a serial.Serial object (or compatible)
+    `port` : a string representing the name of a serial port for the platform
+    `timeout` : the number of seconds to wait for a response before timing out
+    `retries` : the number of retries to attempt in the case of invalid data
+    `progress` : (optional) triple of progress reporting functions (start, update, finish)
     """
 
-    def __init__(self, port):
-        if not port.timeout:
-            raise ValueError(
-                'The port is not set for blocking I/O with a non-zero timeout')
-        self.port = port
+    def __init__(self, port, timeout=5, retries=3, progress=None):
+        if timeout is None or timeout == 0:
+            raise ValueError('timeout must be a positive integer')
+        if port == 'TEST':
+            port_class = DummySerial
+        else:
+            port_class = serial.Serial
+        logging.debug('Opening serial port %s' % port)
+        self.port = port_class(
+            port,
+            baudrate=9600,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+            rtscts=True)
+        self.retries = retries
+        if progress is not None:
+            (   self._progress_start,
+                self._progress_update,
+                self._progress_finish,
+            ) = progress
         self._bottles = None
         self._seen_prompt = False
         # Ensure the port is connected to an OC110 by requesting the
         # manufacturer's ID
+        logging.debug('Testing for known response from MAID command')
+        self.port.flushInput()
         self.id = self._MAID().rstrip('\r')
         if self.id != 'OC110':
             raise UnexpectedReply(
@@ -409,6 +435,7 @@ class DataLogger(object):
         check_response = False
         response = ''
         if not self.port.getCTS():
+            logging.debug('CTS not set, setting RTS')
             cts_wait = time.time() + self.port.timeout
             self.port.setRTS()
             while not self.port.getCTS():
@@ -416,6 +443,7 @@ class DataLogger(object):
                 if time.time() > cts_wait:
                     raise HandshakeFailed(
                         'Failed to detect readiness with RTS/CTS handshake')
+            logging.debug('CTS set')
             # Read anything the unit sends through; if it's just booted up
             # there's probably some BIOS crap to ignore
             check_response = True
@@ -423,6 +451,7 @@ class DataLogger(object):
         # If we've still not yet seen the ">" prompt, hit enter and see if we
         # get one back
         if not self._seen_prompt:
+            logging.debug('No prompt seen, prodding unit with Enter')
             self.port.write('\r')
             check_response = True
             response += self._rx(checksum=False)
@@ -432,8 +461,8 @@ class DataLogger(object):
                 response.endswith('INVALID COMMAND\r')):
             raise UnexpectedReply(
                 'Expected LOGON or INVALID COMMAND, but got %s' % repr(response))
-        logging.debug('TX: %s' % command)
         data = ','.join([command] + [str(arg) for arg in args]) + '\r'
+        logging.debug('TX: %s' % data.rstrip('\r'))
         written = self.port.write(data)
         if written != len(data):
             raise PartialSend(
@@ -447,18 +476,26 @@ class DataLogger(object):
         `checksum` : If true, treat the last line of the repsonse as a checksum
         """
         response = ''
-        while '>\r' not in response:
-            data = self.port.read().decode(ENCODING)
-            if not data:
-                raise ReceiveError('Failed to read any data before timeout')
-            elif data == '\n':
-                # Chuck away any LFs; these only appear in the BIOS output on
-                # unit startup and mess up line splits later on
-                continue
-            elif data == '\r':
-                logging.debug('RX: %s' % response.split('\r')[-1])
-            response += data
-        self._seen_prompt = True
+        if self._progress_start:
+            self._progress_start()
+        try:
+            while '>\r' not in response:
+                data = self.port.read().decode(ENCODING)
+                if not data:
+                    raise ReceiveError('Failed to read any data before timeout')
+                elif data == '\n':
+                    # Chuck away any LFs; these only appear in the BIOS output on
+                    # unit startup and mess up line splits later on
+                    continue
+                elif data == '\r':
+                    logging.debug('RX: %s' % response.split('\r')[-1])
+                    if self._progress_update:
+                        self._progress_update()
+                response += data
+            self._seen_prompt = True
+        finally:
+            if self._progress_finish:
+                self._progress_finish()
         # Split the response on the CRs and strip off the prompt at the end
         response = response.split('\r')[:-2]
         # If we're expecting a check-sum, check the last line for one and
@@ -500,16 +537,26 @@ class DataLogger(object):
         Sends a GAPB (Get All Pressure Bottles) command to the OC110 and
         returns the data received.
         """
-        self._tx('GAPB')
-        return self._rx()
+        for retry in range(self.retries):
+            try:
+                self._tx('GAPB')
+                return self._rx()
+            except ChecksumMismatch as exc:
+                e = exc
+        raise e
 
     def _GPRB(self, bottle):
         """
         Sends a GPRB (Get PRessure Bottle) command to the OC110 and returns
         the data received.
         """
-        self._tx('GPRB', bottle)
-        return self._rx()
+        for retry in range(self.retries):
+            try:
+                self._tx('GPRB', bottle)
+                return self._rx()
+            except ChecksumMismatch as exc:
+                e = exc
+        raise e
 
     def _GSNS(self, bottle):
         """
@@ -524,12 +571,22 @@ class DataLogger(object):
         Sends a GMSK (Get ... erm ... bottle head readings - no idea how they
         get MSK out of that) command to the OC110. Returns the data received.
         """
-        self._tx('GMSK', bottle, head)
-        return self._rx()
+        for retry in range(self.retries):
+            try:
+                self._tx('GMSK', bottle, head)
+                return self._rx()
+            except ChecksumMismatch as exc:
+                e = exc
+        raise e
 
     @property
     def bottles(self):
+        """
+        Return all bottles stored on the connected device.
+        """
         if self._bottles is None:
+            # Use the GAPB command to retrieve the details of all bottles
+            # stored in the device
             data = self._GAPB()
             self._bottles = []
             bottle = ''
@@ -547,7 +604,29 @@ class DataLogger(object):
                     Bottle.from_string(bottle, logger=self))
         return self._bottles
 
+    def bottle(self, serial):
+        """
+        Return a bottle with a specific serial number.
+
+        `serial` : the serial number of the bottle to retrieve
+        """
+        # Check for the specific serial number without refreshing the entire
+        # list. If it's there, return it from the list.
+        if self._bottles is not None:
+            for bottle in self._bottles:
+                if bottle.serial == serial:
+                    return bottle
+        # Otherwise, use the GPRB to retrieve individual bottle details. Note
+        # that we DON'T add it to the list in this case as the list may be
+        # uninitialized at this point. Even if we initialized it, a future call
+        # would have no idea the list was only partially populated
+        data = self._GPRB(serial)
+        return Bottle.from_string(data, logger=self)
+
     def refresh(self):
+        """
+        Force the details of all bottles to be re-read on next access.
+        """
         self._bottles = None
 
 
