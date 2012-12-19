@@ -88,7 +88,7 @@ class BottleWindow(QtGui.QWidget):
         if matplotlib:
             self.figure = Figure(figsize=(5.0, 5.0), facecolor='w', edgecolor='w')
             self.canvas = FigureCanvas(self.figure)
-            self.axes = self.figure.add_axes((0.1, 0.1, 0.8, 0.8))
+            self.axes = self.figure.add_subplot(111)
             self.ui.splitter.addWidget(self.canvas)
             self.redraw_timer = QtCore.QTimer()
             self.redraw_timer.setInterval(200) # msecs
@@ -117,11 +117,10 @@ class BottleWindow(QtGui.QWidget):
         self.ui.measurement_mode_edit.setText(bottle.mode_string)
         self.ui.bottle_volume_spin.setValue(bottle.bottle_volume)
         self.ui.sample_volume_spin.setValue(bottle.sample_volume)
-        self.ui.dilution_edit.setText('1+%d' % bottle.dilution)
+        self.ui.dilution_spin.setValue(bottle.dilution)
         self.ui.start_timestamp_edit.setText(bottle.start.strftime('%c'))
         self.ui.finish_timestamp_edit.setText(bottle.finish.strftime('%c'))
-        self.ui.measurement_complete_edit.setText(
-            'Yes' if bottle.finish < datetime.now() else 'No')
+        self.ui.measurement_complete_edit.setText(bottle.completed)
         self.ui.desired_values_edit.setText(str(bottle.measurements))
         self.ui.actual_values_edit.setText(str(
             max(len(head.readings) for head in bottle.heads)))
