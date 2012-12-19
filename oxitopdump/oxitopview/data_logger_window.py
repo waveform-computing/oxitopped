@@ -69,8 +69,12 @@ class DataLoggerWindow(QtGui.QWidget):
 
     def bottles_view_double_clicked(self, index):
         "Handler for the bottles_view double-click event"
-        # TODO Find existing window and simply activate it if available
         bottle = self.data_logger.bottles[index.row()]
+        for window in self.window().ui.mdi_area.subWindowList():
+            if isinstance(window.widget(), BottleWindow) and (
+                    window.widget().bottle == bottle):
+                self.window().ui.mdi_area.setActiveSubWindow(window)
+                return
         window = None
         try:
             window = self.window().ui.mdi_area.addSubWindow(
