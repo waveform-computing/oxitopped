@@ -213,7 +213,7 @@ class Application(object):
         if not self.progress_visible:
             return
         if erase:
-            sys.stdout.write('\b')
+            sys.stderr.write('\b')
         sys.stderr.write(self.progress_spinner[self.progress_index % len(self.progress_spinner)])
         sys.stderr.flush()
         self.progress_index += 1
