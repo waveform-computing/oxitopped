@@ -18,22 +18,7 @@
 # You should have received a copy of the GNU General Public License along with
 # oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
-"""A simple application for grabbing data from an OxiTop OC110 Data Logger
-
-This application was developed after a quick reverse engineering of the basic
-protocol of the OxiTop OC110 pressure data logger. Our understanding of the
-protocol is incomplete at best but sufficient for data extraction. The actual
-steps of the protocol are as follows:
-
- 1. Client sends <CR> (ASCII code 13) which starts the conversation
- 2. OC110 sends "LOGON>" (without the quotes)
- 3. Client sends "MAID" <CR> (manufacturer ID maybe? <CR> again means ASCII 13)
- 4. OC110 sends "OC110" <CR> ">"
- 5. Client sends "GAPB" <CR> (get all ... erm?)
- 6. OC110 begins transmitting all data
- 7. OC110 terminates with ">" prompt
-
-"""
+"""The base class for command line oxitop applications"""
 
 from __future__ import (
     unicode_literals,
@@ -44,15 +29,15 @@ from __future__ import (
 
 import sys
 import os
-import csv
-import serial
 import optparse
 import textwrap
 import logging
 import traceback
 import locale
 
-from oxitopdump.bottles import DummySerial
+import serial
+
+from oxitopdump.bottles import DataLogger
 
 
 __version__ = '0.1'
@@ -77,25 +62,24 @@ class OptionParser(optparse.OptionParser):
 
 
 class Application(object):
-    """%prog [options] filename
+    """
+    Base class for command line applications.
 
-    This utility extracts data from an OxiTop C110 pressure data logger.
-    Various options are provided to specify the serial port that the data
-    logger is connected to. The data will be written to the specified filename
-    in CSV format.
+    In descendent classes, the documentation for the --help parameter should
+    be placed in the class' __doc__ field, where this text is.
     """
 
     def __init__(self):
         super(Application, self).__init__()
-        self.port = None
+        self.progress_visible = False
         self.wrapper = textwrap.TextWrapper()
         self.wrapper.width = 75
         self.parser = OptionParser(
-            usage=self.__doc__.split('\n')[0],
+            usage=self.__doc__.strip().split('\n')[0],
             version=__version__,
             description=self.wrapper.fill('\n'.join(
                 line.lstrip()
-                for line in self.__doc__.split('\n')[1:]
+                for line in self.__doc__.strip().split('\n')[1:]
                 if line.lstrip()
             )),
             formatter=HelpFormatter())
@@ -103,7 +87,7 @@ class Application(object):
             debug=False,
             logfile='',
             loglevel=logging.WARNING,
-            port='/dev/ttyUSB0',
+            port='COM1' if sys.platform.startswith('win') else '/dev/ttyUSB0',
             )
         self.parser.add_option(
             '-q', '--quiet', dest='loglevel', action='store_const',
@@ -119,14 +103,15 @@ class Application(object):
             help='enables debug mode (runs under PDB)')
         self.parser.add_option(
             '-p', '--port', dest='port', action='store',
-            help='specify the port which the OxiTop is connected to. This '
-            'will be something like /dev/ttyUSB0 on Linux and something like '
-            'COM1 on Windows')
+            help='specify the port which the OxiTop Data Logger is connected '
+            'to. This will be something like /dev/ttyUSB0 on Linux or COM1 '
+            'on Windows')
 
     def __call__(self, args=None):
         if args is None:
             args = sys.argv[1:]
         (options, args) = self.parser.parse_args(list(args))
+        self.progress_visible = (options.loglevel == logging.INFO)
         console = logging.StreamHandler(sys.stderr)
         console.setFormatter(logging.Formatter('%(message)s'))
         console.setLevel(options.loglevel)
@@ -151,7 +136,9 @@ class Application(object):
                 return self.handle(*sys.exc_info())
 
     def handle(self, type, value, tb):
-        """Exception hook for non-debug mode."""
+        """
+        Exception hook for non-debug mode.
+        """
         if issubclass(type, (SystemExit, KeyboardInterrupt)):
             # Just ignore system exit and keyboard interrupt errors (after all,
             # they're user generated)
@@ -176,73 +163,70 @@ class Application(object):
                     logging.critical(s)
             return 1
 
+    def print_table(self, lines, header_lines=1, footer_lines=0):
+        """
+        Routine for pretty-printing a text table.
+
+        `lines` : a sequence of tuples representing a row of values in the table
+        `header_lines` : number of lines at the start that are headers
+        `footer_lines` : number of lines at the end that are footers
+        """
+        lines = list(lines)
+        # Calculate the maximum length of each field
+        columns = max(len(line) for line in lines)
+        lengths = [
+            max(len(line[column])
+                if column < len(line) else 0 for line in lines)
+            for column in range(columns)
+            ]
+        # Insert separators
+        if header_lines != 0:
+            lines.insert(header_lines, tuple('-' * l for l in lengths))
+        if footer_lines != 0:
+            lines.insert(-footer_lines, tuple('-' * l for l in lengths))
+        # Output the data
+        for line in lines:
+            print(' '.join('%-*s' % (l, s) for (l, s) in zip(lengths, line)))
+
+    def print_form(self, lines, fmt='{field: <{width}}{value}'):
+        """
+        Routine for pretty-printing a form of fields.
+
+        `lines` : a sequence of 2-tuples representing each field and its value
+        `fmt` : a format string specifying how to lay out each line
+        """
+        lines = list(lines)
+        columns = max(len(line) for line in lines)
+        assert columns == 2
+        # Calculate the maximum length of each field
+        width = max(len(line[0]) for line in lines) + 2
+        for (field, value) in lines:
+            print(fmt.format(width=width, field=field, value=value))
+
+    progress_spinner = ['\\', '|', '/' ,'-']
+
+    def progress_start(self):
+        self.progress_index = 0
+        self.progress_update(erase=False)
+
+    def progress_update(self, erase=True):
+        if not self.progress_visible:
+            return
+        if erase:
+            sys.stdout.write('\b')
+        sys.stdout.write(self.progress_spinner[self.progress_index % len(self.progress_spinner)])
+        sys.stdout.flush()
+        self.progress_index += 1
+
+    def progress_finish(self):
+        if not self.progress_visible:
+            return
+        sys.stdout.write('\b')
+
     def main(self, options, args):
-        if options.port == 'TEST':
-            port_class = emulator.DummySerial
-        else:
-            port_class = serial.Serial
-        self.port = port_class(
-            options.port,
-            baudrate=9600,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            timeout=5,
-            rtscts=True)
-        self.port.flushInput()
-        self.send('\r')
-        self.expect(['LOGON', 'INVALID COMMAND'])
-        self.send('MAID\r')
-        self.expect(['OC110'])
-        self.send('GAPB\r')
-        logging.info('Entering data retrieval loop')
-        rows = []
-        buf = ''
-        while True:
-            data = self.port.read().decode('ASCII')
-            if not data:
-                raise ValueError('Failed to read any data before timeout')
-            buf += data
-            if buf == '>':
-                logging.info('Received prompt, terminating data retrieval loop')
-                break
-            if '\r' in buf:
-                rows.append(buf)
-                logging.info('Received data line %d' % len(rows))
-                buf = ''
-        for rownum, row in enumerate(rows):
-            print(rownum, row)
+        self.data_logger = DataLogger(options.port, progress=(
+            self.progress_start,
+            self.progress_update,
+            self.progress_finish,
+            ))
 
-    def expect(self, patterns):
-        logging.info('Waiting for response')
-        response = ''
-        while '>' not in response:
-            data = self.port.read().decode('ASCII')
-            if not data:
-                raise ValueError('Failed to read any data before timeout')
-            response += data
-        # Strip off the prompt
-        response = response.rstrip('>')
-        # Split the responsefer on the CRs
-        response = response.split('\r')
-        # Remove any blank lines
-        response = [line for line in response if line]
-        # Check we only received a single non-blank response
-        if len(response) > 1:
-            raise ValueError('Recevied more than one line in response')
-        response = response[0]
-        if response not in patterns:
-            raise ValueError(
-                'Expected "%r" but received %s' % (patterns[0], repr(response)))
-        logging.info('Received response %s' % repr(response))
-        return response
-
-    def send(self, data):
-        logging.info('Sending command %s' % repr(data))
-        written = self.port.write(data)
-        if written != len(data):
-            raise ValueError(
-                'Only wrote first %d bytes of %s' % (written, repr(data)))
-
-
-main = Application()
