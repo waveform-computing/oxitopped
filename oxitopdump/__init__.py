@@ -214,14 +214,14 @@ class Application(object):
             return
         if erase:
             sys.stdout.write('\b')
-        sys.stdout.write(self.progress_spinner[self.progress_index % len(self.progress_spinner)])
-        sys.stdout.flush()
+        sys.stderr.write(self.progress_spinner[self.progress_index % len(self.progress_spinner)])
+        sys.stderr.flush()
         self.progress_index += 1
 
     def progress_finish(self):
         if not self.progress_visible:
             return
-        sys.stdout.write('\b')
+        sys.stderr.write('\b')
 
     def main(self, options, args):
         self.data_logger = DataLogger(options.port, progress=(
