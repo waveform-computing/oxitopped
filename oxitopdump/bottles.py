@@ -264,9 +264,10 @@ class BottleHead(object):
     `readings` : optional sequence of integers for the head's readings
     """
 
-    def __init__(self, bottle, serial, readings=None):
+    def __init__(self, bottle, serial, pressure_limit=150, readings=None):
         self.bottle = bottle
         self.serial = serial
+        self.pressure_limit = pressure_limit
         if readings is None or isinstance(readings, BottleReadings):
             self._readings = readings
         else:
@@ -277,18 +278,18 @@ class BottleHead(object):
         data = data.decode(ENCODING)
         # Strip trailing CR
         data = data.rstrip('\r')
-        (   _,      # blank value (due to extraneous leading comma)
-            serial, # serial number of head
-            _,      # ???
-            _,      # blank value (due to extraneous trailing comma)
+        (   _,              # blank value (due to extraneous leading comma)
+            serial,         # serial number of head
+            pressure_limit, # pressure limit at which auto collection stops
+            _,              # blank value (due to extraneous trailing comma)
         ) = data.split(',')
-        return cls(bottle, serial)
+        return cls(bottle, serial, pressure_limit)
 
     def __str__(self):
         return (','.join((
             '',
             self.serial,
-            '150',
+            str(self.pressure_limit),
             '',
             )) + '\r').encode(ENCODING)
 
@@ -331,11 +332,11 @@ class BottleReadings(object):
         # Discard the empty line at the end
         assert not data[-1]
         data = data[:-1]
-        (   head_serial,      # blank value (due to extraneous leading comma)
-            bottle_serial, # serial number of head
-            _,      # ??? (always 1)
-            _,      # ??? (always 1)
-            _,      # ??? (0-247?)
+        (   head_serial,   # serial number of head
+            bottle_serial, # serial number of the owning bottle
+            _,             # ??? (always 1)
+            _,             # ??? (always 1)
+            _,             # ??? (0-247?)
             bottle_start,
             readings_len,
         ) = data[0].split(',')
@@ -683,8 +684,8 @@ class DummySerial(object):
             ))
         self._bottles[-1].heads.append(BottleHead(
             self._bottles[-1],
-            '60108',
-            [
+            serial='60108',
+            readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
                 965, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 965,
                 964, 965, 965, 964, 964, 964, 965, 965, 965, 965, 965, 965,
@@ -731,8 +732,8 @@ class DummySerial(object):
             ))
         self._bottles[-1].heads.append(BottleHead(
             self._bottles[-1],
-            '60108',
-            []))
+            serial='60108',
+            readings=[]))
         self._bottles.append(Bottle(
             serial='120323-01',
             id=1,
@@ -747,8 +748,8 @@ class DummySerial(object):
             ))
         self._bottles[-1].heads.append(BottleHead(
             self._bottles[-1],
-            '60145',
-            [
+            serial='60145',
+            readings=[
                 976, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963, 963,
                 963, 963, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963,
                 962, 963, 963, 962, 962, 963, 963, 963, 963, 962, 963, 963,
@@ -783,8 +784,8 @@ class DummySerial(object):
                 ]))
         self._bottles[-1].heads.append(BottleHead(
             self._bottles[-1],
-            '60143',
-            [
+            serial='60143',
+            readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
                 965, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 965,
                 964, 965, 965, 964, 964, 964, 965, 965, 965, 965, 965, 965,
@@ -910,10 +911,10 @@ class DummySerial(object):
         return result.encode('ASCII')
 
     def write(self, data):
-        # Pause for the amount of time it would take to send data
-        time.sleep(len(data) * 10 / self.baudrate)
         if not self._opened:
             raise ValueError('port is closed')
+        # Pause for the amount of time it would take to send data
+        time.sleep(len(data) * 10 / self.baudrate)
         self._write_buf += data.decode('ASCII')
         while '\r' in self._write_buf:
             command, self._write_buf = self._write_buf.split('\r', 1)
