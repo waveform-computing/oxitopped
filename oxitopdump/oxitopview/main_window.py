@@ -66,12 +66,9 @@ class MainWindow(QtGui.QMainWindow):
         finally:
             self.settings.endGroup()
         # Configure status bar elements
-        self.ui.x_label = QtGui.QLabel('')
-        self.statusBar().addWidget(self.ui.x_label)
-        self.ui.y_label = QtGui.QLabel('')
-        self.statusBar().addWidget(self.ui.y_label)
-        self.ui.value_label = QtGui.QLabel('')
-        self.statusBar().addWidget(self.ui.value_label)
+        self.ui.progress_label = QtGui.QLabel('')
+        self.statusBar().addWidget(self.ui.progress_label)
+        self.progress_index = 0
         # Connect up signals to methods
         self.ui.mdi_area.subWindowActivated.connect(self.window_changed)
         self.ui.quit_action.setIcon(get_icon('application-exit'))
@@ -120,7 +117,13 @@ class MainWindow(QtGui.QMainWindow):
             window = None
             try:
                 window = self.ui.mdi_area.addSubWindow(
-                    DataLoggerWindow(DataLogger(dialog.com_port)))
+                    DataLoggerWindow(DataLogger(
+                        dialog.com_port,
+                        progress=(
+                            self.progress_start,
+                            self.progress_update,
+                            self.progress_finish
+                            ))))
                 window.show()
             except KeyboardInterrupt:
                 if window is not None:
@@ -178,3 +181,15 @@ Project homepage is at
         self.ui.close_action.setEnabled(self.sub_widget is not None)
         self.ui.export_action.setEnabled(self.sub_widget is not None)
         self.ui.refresh_action.setEnabled(self.sub_widget is not None)
+
+    def progress_start(self):
+        QtGui.QApplication.instance().setOverrideCursor(QtCore.Qt.WaitCursor)
+
+    def progress_update(self):
+        self.progress_index += 1
+        self.ui.progress_label.setText('Communicating' + '.' * (self.progress_index % 8))
+        QtGui.QApplication.instance().processEvents()
+
+    def progress_finish(self):
+        self.ui.progress_label.setText('')
+        QtGui.QApplication.instance().restoreOverrideCursor()
