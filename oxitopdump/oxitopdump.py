@@ -54,11 +54,61 @@ class DumpApplication(Application):
 
     def main(self, options, args):
         super(DumpApplication, self).main(options, args)
-        if args:
-            pass
+        self.parser.set_defaults(
+            delta=True,
+            points=1,
+            )
+        self.parser.add_option(
+            '-a', '--absolute', dest='delta', action='store_false',
+            help='if specified, export absolute pressure values instead of '
+            'deltas against the first value')
+        self.parser.add_option(
+            '-m', '--moving-average', dest='points', action='store',
+            help='if specified, export a moving average over the specified '
+            'number of points instead of actual readings')
+
+    def main(self, options, args):
+        super(ListApplication, self).main(options, args)
+        ext = os.path.splitext(args[-1])[-1].lower()
+        try:
+            if ext == '.csv':
+                from oxitopdump.export_csv import CsvExporter
+                exporter = CsvExporter()
+            elif ext == '.xls':
+                from oxitopdump.export_xls import ExcelExporter
+                exporter = ExcelExporter()
+            else:
+                self.parser.error('unknown file extension %s' % ext)
+        except ImportError:
+            self.parser.error(
+                'unable to load exporter for file extension %s' % ext)
+        if len(args) > 1:
+            try:
+                options.points = int(options.points)
+            except ValueError:
+                self.parser.error(
+                    '--moving-average value must be an integer number')
+            if options.points % 2 == 0:
+                self.parser.error(
+                    '--moving-average value must be an odd number')
+            # Construct a set of unique serial numbers (we use a set instead
+            # of a list so that in the event of multiple patterns matching a
+            # single bottle it doesn't get listed multiple times)
+            serials = set()
+            for arg in args:
+                if set('*?[') & set(arg):
+                    serials |= set(
+                        fnmatch.filter((
+                            bottle.serial
+                            for bottle in self.data_logger.bottles), arg))
+                else:
+                    serials.add(arg)
+            for serial in serials:
+                exporter.export_bottle(
+                    args[-1], self.data_logger.bottle(serial),
+                    delta=options.delta, points=options.points)
         else:
-            for bottle in self.data_logger.bottles:
-                print(bottle.serial)
+            exporter.export_bottles(args[0], self.data_logger.bottles)
 
 
 main = DumpApplication()
