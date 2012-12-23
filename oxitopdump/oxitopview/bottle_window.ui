@@ -183,25 +183,25 @@
       </widget>
      </item>
      <item row="5" column="2">
-      <widget class="QLabel" name="average_label">
+      <widget class="QLabel" name="points_label">
        <property name="text">
         <string>Moving average over</string>
        </property>
        <property name="buddy">
-        <cstring>average_spin</cstring>
+        <cstring>points_spin</cstring>
        </property>
       </widget>
      </item>
      <item row="5" column="3">
-      <widget class="QSpinBox" name="average_spin">
+      <widget class="QSpinBox" name="points_spin">
        <property name="suffix">
         <string> points</string>
        </property>
        <property name="minimum">
         <number>1</number>
        </property>
-       <property name="maximum">
-        <number>50</number>
+       <property name="singleStep">
+        <number>2</number>
        </property>
       </widget>
      </item>
@@ -303,7 +303,7 @@
   <tabstop>measurement_complete_edit</tabstop>
   <tabstop>desired_values_edit</tabstop>
   <tabstop>actual_values_edit</tabstop>
-  <tabstop>average_spin</tabstop>
+  <tabstop>points_spin</tabstop>
   <tabstop>absolute_check</tabstop>
   <tabstop>readings_view</tabstop>
  </tabstops>

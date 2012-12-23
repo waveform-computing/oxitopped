@@ -40,6 +40,8 @@ import re
 import time
 import logging
 from datetime import datetime, timedelta
+from collections import deque
+from itertools import islice
 
 import serial
 
@@ -107,8 +109,8 @@ class Bottle(object):
     """
 
     def __init__(
-            self, serial, id, start, finish, interval, measurements, mode,
-            bottle_volume, sample_volume, dilution, logger=None):
+            self, serial, id, start, finish, interval, expected_measurements,
+            mode, bottle_volume, sample_volume, dilution, logger=None):
         self.logger = logger
         try:
             date, num = serial.split('-', 1)
@@ -125,12 +127,16 @@ class Bottle(object):
         self.start = start
         self.finish = finish
         self.interval = interval
-        self.measurements = measurements
+        self.expected_measurements = expected_measurements
         self.mode = mode
         self.bottle_volume = float(bottle_volume)
         self.sample_volume = float(sample_volume)
         self.dilution = dilution
         self.heads = []
+
+    @property
+    def actual_measurements(self):
+        return max(len(head.readings) for head in self.heads)
 
     @property
     def mode_string(self):
@@ -208,7 +214,7 @@ class Bottle(object):
             '5',
             '240',
             '40',
-            str(self.measurements),
+            str(self.expected_measurements),
             str((self.finish - self.start).days * 24 * 60),
             '%.0f' % self.bottle_volume,
             '%.1f' % self.sample_volume,
@@ -377,6 +383,90 @@ class BottleReadings(object):
 
     def __getitem__(self, index):
         return self._items[index]
+
+
+def moving_average(iterable, n):
+    "Calculates a moving average of iterable over n elements"
+    it = iter(iterable)
+    d = deque(islice(it, n - 1))
+    d.appendleft(0.0)
+    s = sum(d)
+    for elem in it:
+        s += elem - d.popleft()
+        d.append(elem)
+        yield s / n
+
+
+class DataAnalyzer(object):
+    """
+    Given a Bottle object, provides a moving average of head readings. The
+    timestamps property provides a sequence of timestamps for the readings,
+    while the heads property is a sequence of sequences of readings (the first
+    dimension is the head, the second is the reading).
+
+    `bottle` : the bottle to derive readings from
+    `delta` : if True, return delta values instead of absolute pressures
+    `points` : the number of points to average for each reading (must be odd)
+    """
+
+    def __init__(self, bottle, delta=False, points=1):
+        self.bottle = bottle
+        self._delta = delta
+        self._points = points
+        self._timestamps = None
+        self._heads = None
+
+    def refresh(self):
+        self._timestamps = None
+        self._heads = None
+        self.bottle.refresh()
+
+    def _get_delta(self):
+        return self._delta
+
+    def _set_delta(self, value):
+        if value != self._delta:
+            self._delta = bool(value)
+            self._heads = None
+
+    delta = property(_get_delta, _set_delta)
+
+    def _get_points(self):
+        return self._points
+
+    def _set_points(self, value):
+        if value != self._points:
+            self._points = int(value)
+            self._heads = None
+            self._timestamps = None
+
+    points = property(_get_points, _set_points)
+
+    @property
+    def timestamps(self):
+        if self._timestamps is None:
+            max_readings = max(len(head.readings) for head in self.bottle.heads)
+            self._timestamps = [
+                self.bottle.start + (
+                    self.bottle.interval * (
+                        reading + (self.points - 1) // 2))
+                for reading in range(max_readings - (self.points - 1))
+                ]
+        return self._timestamps
+
+    @property
+    def heads(self):
+        if self._heads is None:
+            self._heads = [
+                list(
+                    moving_average((
+                        reading - (head.readings[0] if self.delta else 0)
+                        for reading in head.readings
+                        ), self.points)
+                    )
+                for head in self.bottle.heads
+                ]
+        return self._heads
 
 
 class DataLogger(object):
@@ -676,7 +766,7 @@ class DummySerial(object):
             start=datetime(2011, 2, 22, 16, 54, 55),
             finish=datetime(2011, 3, 8, 16, 54, 55),
             interval=timedelta(seconds=56 * 60),
-            measurements=360,
+            expected_measurements=360,
             mode='pressure',
             bottle_volume=510,
             sample_volume=432,
@@ -724,7 +814,7 @@ class DummySerial(object):
             start=datetime(2012, 11, 19, 13, 53, 4),
             finish=datetime(2012, 11, 22, 13, 53, 4),
             interval=timedelta(seconds=12 * 60),
-            measurements=360,
+            expected_measurements=360,
             mode='pressure',
             bottle_volume=510,
             sample_volume=432,
@@ -740,7 +830,7 @@ class DummySerial(object):
             start=datetime(2012, 3, 23, 17, 32, 23),
             finish=datetime(2012, 4, 20, 17, 32, 23),
             interval=timedelta(seconds=112 * 60),
-            measurements=360,
+            expected_measurements=360,
             mode='pressure',
             bottle_volume=510,
             sample_volume=432,

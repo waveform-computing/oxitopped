@@ -43,7 +43,7 @@ class DumpApplication(Application):
     """
     %prog [options] [bottle-serial]... filename
 
-    This utility dumps the sample results stored on a connected OxiTop Data
+    This utility dumps the sample readings stored on a connected OxiTop Data
     Logger to files in CSV or Excel format. If bottle-serial values are
     specified, the details of those bottles and all heads attached to them will
     be exported, otherwise a list of all available bottles is exported.

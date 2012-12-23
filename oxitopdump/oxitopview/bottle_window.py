@@ -29,6 +29,7 @@ from __future__ import (
 import io
 import os
 from datetime import datetime
+from itertools import izip_longest
 
 import numpy as np
 from PyQt4 import QtCore, QtGui, uic
@@ -36,6 +37,7 @@ from PyQt4 import QtCore, QtGui, uic
 from oxitopdump.oxitopview.exporter import BaseExporter
 from oxitopdump.oxitopview.export_csv_dialog import ExportCsvDialog
 from oxitopdump.oxitopview.export_excel_dialog import ExportExcelDialog
+from oxitopdump.bottles import DataAnalyzer
 
 # XXX Py3
 try:
@@ -49,25 +51,12 @@ try:
     from matplotlib.figure import Figure
     from matplotlib.colors import colorConverter
     from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-    from collections import deque
-    from itertools import islice
 except ImportError:
     matplotlib = None
 
 
 MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-
-def moving_average(iterable, n):
-    "Calculates a moving average of iterable over n elements"
-    it = iter(iterable)
-    d = deque(islice(it, n - 1))
-    d.appendleft(0.0)
-    s = sum(d)
-    for elem in it:
-        s += elem - d.popleft()
-        d.append(elem)
-        yield s / n
 
 
 class BottleWindow(QtGui.QWidget):
@@ -77,14 +66,10 @@ class BottleWindow(QtGui.QWidget):
         super(BottleWindow, self).__init__(None)
         self.ui = uic.loadUi(
             os.path.join(MODULE_DIR, 'bottle_window.ui'), self)
-        self.ui.readings_view.setModel(BottleModel(bottle))
+        self.ui.readings_view.setModel(BottleModel(DataAnalyzer(bottle, delta=True)))
         for col in range(self.ui.readings_view.model().columnCount()):
             self.ui.readings_view.resizeColumnToContents(col)
         self.exporter = BottleExporter(self)
-        self.refresh_edits()
-        self.setWindowTitle('Bottle %s' % bottle.serial)
-        self.ui.absolute_check.toggled.connect(self.absolute_toggled)
-        self.ui.average_spin.valueChanged.connect(self.average_changed)
         if matplotlib:
             self.figure = Figure(figsize=(5.0, 5.0), facecolor='w', edgecolor='w')
             self.canvas = FigureCanvas(self.figure)
@@ -94,24 +79,29 @@ class BottleWindow(QtGui.QWidget):
             self.redraw_timer.setInterval(200) # msecs
             self.redraw_timer.timeout.connect(self.redraw_timeout)
             self.ui.splitter.splitterMoved.connect(self.splitter_moved)
-            self.invalidate_graph()
+        self.refresh_edits()
+        self.setWindowTitle('Bottle %s' % bottle.serial)
+        self.ui.absolute_check.toggled.connect(self.absolute_toggled)
+        self.ui.points_spin.valueChanged.connect(self.points_changed)
+
+    @property
+    def model(self):
+        return self.ui.readings_view.model()
 
     @property
     def bottle(self):
-        return self.ui.readings_view.model().bottle
+        return self.model.analyzer.bottle
 
     def refresh_window(self):
         "Forces the list to be re-read from the data logger"
-        model = self.ui.readings_view.model()
-        first = model.index(0, 0)
-        last = model.index(model.rowCount() - 1, model.columnCount() - 1)
-        model.bottle.refresh()
+        self.model.beginResetModel()
+        self.model.analyzer.refresh()
         self.refresh_edits()
-        model.dataChanged.emit(first, last)
+        self.model.endResetModel()
 
     def refresh_edits(self):
         "Refresh all the edit controls from the bottle"
-        bottle = self.ui.readings_view.model().bottle
+        bottle = self.model.analyzer.bottle
         self.ui.bottle_serial_edit.setText(bottle.serial)
         self.ui.bottle_id_edit.setText(str(bottle.id))
         self.ui.measurement_mode_edit.setText(bottle.mode_string)
@@ -121,9 +111,18 @@ class BottleWindow(QtGui.QWidget):
         self.ui.start_timestamp_edit.setText(bottle.start.strftime('%c'))
         self.ui.finish_timestamp_edit.setText(bottle.finish.strftime('%c'))
         self.ui.measurement_complete_edit.setText(bottle.completed)
-        self.ui.desired_values_edit.setText(str(bottle.measurements))
-        self.ui.actual_values_edit.setText(str(
-            max(len(head.readings) for head in bottle.heads)))
+        self.ui.desired_values_edit.setText(str(bottle.expected_measurements))
+        self.ui.actual_values_edit.setText(str(bottle.actual_measurements))
+        self.ui.points_spin.setMaximum(
+            max(1, bottle.actual_measurements - (
+                1 if bottle.actual_measurements % 2 == 0 else 0)))
+        self.ui.points_spin.setEnabled(bottle.actual_measurements > 1)
+        self.ui.absolute_check.setEnabled(bottle.actual_measurements > 1)
+        if bottle.actual_measurements > 1:
+            self.canvas.show()
+            self.invalidate_graph()
+        else:
+            self.canvas.hide()
 
     def export_file(self):
         "Export the readings to a user-specified filename"
@@ -131,12 +130,13 @@ class BottleWindow(QtGui.QWidget):
 
     def absolute_toggled(self, checked):
         "Handler for the toggled signal of the absolute_check control"
-        self.ui.readings_view.model().delta = not checked
+        self.model.delta = not checked
         if matplotlib:
             self.invalidate_graph()
 
-    def average_changed(self, value):
-        "Handler for the valueChanged signal of the average_spin control"
+    def points_changed(self, value):
+        "Handler for the valueChanged signal of the points_spin control"
+        self.model.points = value
         if matplotlib:
             self.invalidate_graph()
 
@@ -167,17 +167,11 @@ class BottleWindow(QtGui.QWidget):
             self.axes.set_ylabel(self.tr('Pressure (hPa)'))
         else:
             self.axes.set_ylabel(self.tr('Delta Pressure (hPa)'))
-        m = self.ui.average_spin.value()
-        for head_ix, head in enumerate(self.bottle.heads):
+        m = self.ui.points_spin.value()
+        for head_ix, head in enumerate(self.model.analyzer.heads):
             self.axes.plot_date(
-                x=[
-                    self.bottle.start + (self.bottle.interval * (reading + m - 1))
-                    for reading in range(len(head.readings) - (m - 1))
-                    ],
-                y=list(moving_average((
-                    reading - (head.readings[0] if self.ui.readings_view.model().delta else 0)
-                    for reading in head.readings
-                    ), m)),
+                x=self.model.analyzer.timestamps,
+                y=head,
                 fmt='%s-' % matplotlib.rcParams['axes.color_cycle'][
                     head_ix % len(matplotlib.rcParams['axes.color_cycle'])]
                 )
@@ -187,19 +181,31 @@ class BottleWindow(QtGui.QWidget):
 
 
 class BottleModel(QtCore.QAbstractTableModel):
-    def __init__(self, bottle, delta=True):
+    def __init__(self, analyzer):
         super(BottleModel, self).__init__()
-        self.bottle = bottle
-        self._delta = delta
+        self.analyzer = analyzer
+
+    def _get_points(self):
+        return self.analyzer.points
+
+    def _set_points(self, value):
+        if value != self.analyzer.points:
+            self.beginResetModel()
+            try:
+                self.analyzer.points = value
+            finally:
+                self.endResetModel()
+
+    points = property(_get_points, _set_points)
 
     def _get_delta(self):
-        return self._delta
+        return self.analyzer.delta
 
     def _set_delta(self, value):
-        if value != self._delta:
-            self._delta = bool(value)
+        if value != self.analyzer.delta:
             first = self.index(0, 3)
             last = self.index(self.rowCount() - 1, self.columnCount() - 1)
+            self.analyzer.delta = value
             self.dataChanged.emit(first, last)
 
     delta = property(_get_delta, _set_delta)
@@ -209,14 +215,14 @@ class BottleModel(QtCore.QAbstractTableModel):
             parent = QtCore.QModelIndex()
         if parent.isValid():
             return 0
-        return max(len(head.readings) for head in self.bottle.heads)
+        return len(self.analyzer.timestamps)
 
     def columnCount(self, parent=None):
         if parent is None:
             parent = QtCore.QModelIndex()
         if parent.isValid():
             return 0
-        return len(self.bottle.heads) + 3
+        return len(self.analyzer.bottle.heads) + 3
 
     def data(self, index, role):
         if not index.isValid():
@@ -226,13 +232,13 @@ class BottleModel(QtCore.QAbstractTableModel):
         if index.column() == 0:
             return index.row()
         elif index.column() == 1:
-            return (self.bottle.start + (self.bottle.interval * index.row())).strftime('%c')
+            return self.analyzer.timestamps[index.row()].strftime('%c')
         elif index.column() == 2:
-            return str(self.bottle.interval * index.row())
+            return str(self.analyzer.timestamps[index.row()] - self.analyzer.bottle.start)
         else:
-            head = self.bottle.heads[index.column() - 3]
-            if index.row() < len(head.readings):
-                return str(head.readings[index.row()] - (head.readings[0] if self.delta else 0))
+            head = self.analyzer.heads[index.column() - 3]
+            if index.row() < len(head):
+                return '%.6g' % head[index.row()]
             else:
                 return ''
 
@@ -242,7 +248,7 @@ class BottleModel(QtCore.QAbstractTableModel):
                 'No.',
                 'Timestamp',
                 'Offset',
-                ] + ['Head %s' % head.serial for head in self.bottle.heads]
+                ] + ['Head %s' % head.serial for head in self.analyzer.bottle.heads]
             return columns[section]
         elif (orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.ForegroundRole
                 and section >= 3 and matplotlib):
@@ -265,8 +271,7 @@ class BottleExporter(BaseExporter):
         dialog = ExportCsvDialog(self.parent)
         if dialog.exec_():
             import csv
-            bottle = self.parent.bottle
-            delta = self.parent.ui.readings_view.model().delta
+            analyzer = self.parent.model.analyzer
             with io.open(filename, 'wb') as output_file:
                 writer = csv.writer(output_file,
                     delimiter=dialog.delimiter,
@@ -281,20 +286,13 @@ class BottleExporter(BaseExporter):
                         'Offset',
                         ] + [
                         'Head %s' % head.serial
-                        for head in bottle.heads
+                        for head in analyzer.bottle.heads
                         ])
-                for reading in range(
-                        max(len(head.readings)
-                        for head in bottle.heads)):
-                    row = [
-                        reading,
-                        (bottle.start + (bottle.interval * reading)).strftime(dialog.timestamp_format),
-                        str(bottle.interval * reading),
-                        ] + [
-                        head.readings[reading] - (head.readings[0] if delta else 0)
-                            if reading < len(head.readings) else None
-                        for head in bottle.heads
-                        ]
+                for row in izip_longest(
+                        range(len(analyzer.timestamps)),
+                        analyzer.timestamps,
+                        (str(t - analyzer.bottle.start) for t in analyzer.timestamps),
+                        *analyzer.heads):
                     writer.writerow(row)
 
     def export_excel(self, filename):
@@ -302,8 +300,7 @@ class BottleExporter(BaseExporter):
         dialog = ExportExcelDialog(self.parent)
         if dialog.exec_():
             import xlwt
-            bottle = self.parent.bottle
-            delta = self.parent.ui.readings_view.model().delta
+            analyzer = self.parent.model.analyzer
             header_style = xlwt.easyxf('font: bold on')
             even_default_style = xlwt.easyxf('')
             even_text_style = xlwt.easyxf(num_format_str='@')
@@ -313,19 +310,19 @@ class BottleExporter(BaseExporter):
             odd_date_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue', num_format_str='ddd d mmm yyyy hh:mm:ss')
             workbook = xlwt.Workbook()
             # Create the bottle details sheet
-            worksheet = workbook.add_sheet('Bottle %s' % bottle.serial)
+            worksheet = workbook.add_sheet('Bottle %s' % analyzer.bottle.serial)
             data = (
-                ('Bottle Serial',         bottle.serial),
-                ('Bottle ID',             bottle.id),
-                ('Bottle Volume',         bottle.bottle_volume),
-                ('Sample Volume',         bottle.sample_volume),
-                ('Dilution',              '1+%d' % bottle.dilution),
-                ('Measurement Mode',      bottle.mode_string),
-                ('Measurement Complete',  bottle.finish < datetime.now()),
-                ('Start Timestamp',       bottle.start),
-                ('Finish Timestamp',      bottle.finish),
-                ('Desired no. of Values', bottle.measurements),
-                ('Actual no. of Values',  max(len(head.readings) for head in bottle.heads)),
+                ('Bottle Serial',         analyzer.bottle.serial),
+                ('Bottle ID',             analyzer.bottle.id),
+                ('Bottle Volume',         analyzer.bottle.bottle_volume),
+                ('Sample Volume',         analyzer.bottle.sample_volume),
+                ('Dilution',              '1+%d' % analyzer.bottle.dilution),
+                ('Measurement Mode',      analyzer.bottle.mode_string),
+                ('Measurement Complete',  analyzer.bottle.finish < datetime.now()),
+                ('Start Timestamp',       analyzer.bottle.start),
+                ('Finish Timestamp',      analyzer.bottle.finish),
+                ('Desired no. of Values', analyzer.bottle.expected_measurements),
+                ('Actual no. of Values',  analyzer.bottle.actual_measurements),
                 )
             for row, row_data in enumerate(data):
                 for col, value in enumerate(row_data):
@@ -349,7 +346,7 @@ class BottleExporter(BaseExporter):
                     'Offset',
                     ] + [
                     'Head %s' % head.serial
-                    for head in bottle.heads
+                    for head in analyzer.bottle.heads
                     ]
                 for col, value in enumerate(data):
                     worksheet.write(row, col, value, header_style)
@@ -357,27 +354,20 @@ class BottleExporter(BaseExporter):
                 # Freeze the header row at the top of the sheet
                 worksheet.panes_frozen = True
                 worksheet.horz_split_pos = 1
-            for reading in range(
-                    max(len(head.readings)
-                    for head in bottle.heads)):
+            for data in izip_longest(
+                    range(len(analyzer.timestamps)),
+                    analyzer.timestamps,
+                    (str(t - analyzer.bottle.start) for t in analyzer.timestamps),
+                    *analyzer.heads):
                 if dialog.row_colors:
                     (default_style, text_style, date_style) = [
                         (even_default_style, even_text_style, even_date_style),
                         (odd_default_style, odd_text_style, odd_date_style)
-                        ][row % 2]
+                        ][data[0] % 2]
                 else:
                     (default_style, text_style, date_style) = (
                         even_default_style, even_text_style, even_date_style
                         )
-                data = [
-                    reading,
-                    bottle.start + bottle.interval * reading,
-                    str(bottle.interval * reading),
-                    ] + [
-                    head.readings[reading] - (head.readings[0] if delta else 0)
-                        if reading < len(head.readings) else None
-                    for head in bottle.heads
-                    ]
                 for col, value in enumerate(data):
                     if isinstance(value, datetime):
                         worksheet.write(row, col, value, date_style)

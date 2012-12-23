@@ -36,8 +36,10 @@ from __future__ import (
 import os
 import fnmatch
 import logging
+from itertools import izip_longest
 
 from oxitopdump import Application
+from oxitopdump.bottles import DataAnalyzer
 
 
 class ListApplication(Application):
@@ -56,6 +58,7 @@ class ListApplication(Application):
         self.parser.set_defaults(
             readings=False,
             delta=True,
+            points=1,
             )
         self.parser.add_option(
             '-r', '--readings', dest='readings', action='store_true',
@@ -65,10 +68,22 @@ class ListApplication(Application):
             '-a', '--absolute', dest='delta', action='store_false',
             help='if specified with --readings, output absolute pressure '
             'values instead of deltas against the first value')
+        self.parser.add_option(
+            '-m', '--moving-average', dest='points', action='store',
+            help='if specified with --readings, output a moving average '
+            'over the specified number of points instead of actual readings')
 
     def main(self, options, args):
         super(ListApplication, self).main(options, args)
         if args:
+            try:
+                options.points = int(options.points)
+            except ValueError:
+                self.parser.error(
+                    '--moving-average value must be an integer number')
+            if options.points % 2 == 0:
+                self.parser.error(
+                    '--moving-average value must be an odd number')
             # Construct a set of unique serial numbers (we use a set instead
             # of a list so that in the event of multiple patterns matching a
             # single bottle it doesn't get listed multiple times)
@@ -88,7 +103,8 @@ class ListApplication(Application):
                 else:
                     print()
                 self.print_bottle(
-                    serial, readings=options.readings, delta=options.delta)
+                    serial, readings=options.readings, delta=options.delta,
+                    points=options.points)
         else:
             self.print_bottles()
 
@@ -110,9 +126,8 @@ class ListApplication(Application):
         print()
         print('%d results returned' % len(self.data_logger.bottles))
 
-    def print_bottle(self, serial, readings=False, delta=True):
+    def print_bottle(self, serial, readings=False, delta=True, points=1):
         bottle = self.data_logger.bottle(serial)
-        max_readings = max(len(head.readings) for head in bottle.heads)
         form = [
             ('Serial',               bottle.serial),
             ('ID',                   str(bottle.id)),
@@ -124,24 +139,24 @@ class ListApplication(Application):
             ('Bottle Volume',        '%.1fml' % bottle.bottle_volume),
             ('Sample Volume',        '%.1fml' % bottle.sample_volume),
             ('Dilution',             '1+%d' % bottle.dilution),
-            ('Desired no. of Values', str(bottle.measurements)),
-            ('Actual no. of Values',  str(max_readings)),
+            ('Desired no. of Values', str(bottle.expected_measurements)),
+            ('Actual no. of Values',  str(bottle.actual_measurements)),
             ('Heads',                 str(len(bottle.heads))),
             ]
         self.print_form(form)
         if readings:
+            analyzer = DataAnalyzer(bottle, delta=delta, points=points)
             print()
             table = [
-                tuple('Head' for head in bottle.heads),
-                tuple(head.serial for head in bottle.heads),
+                tuple([''] + ['Head' for head in bottle.heads]),
+                tuple(['Timestamp'] + [head.serial for head in bottle.heads]),
                 ]
             table.extend(
                 tuple(
-                    str(head.readings[reading] - (head.readings[0] if delta else 0))
-                    if reading < len(head.readings) else ''
-                    for head in bottle.heads
+                    str(reading)
+                    for reading in head
                     )
-                for reading in range(max_readings)
+                for head in izip_longest(analyzer.timestamps, *analyzer.heads)
                 )
             self.print_table(table, header_lines=2)
 
