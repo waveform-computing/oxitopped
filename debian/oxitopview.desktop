@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=oxitopview
+Comment=Extract data from an OxiTop OC110 Data Logger
+Exec=oxitopview
+Icon=oxitopview
+Terminal=false
+Type=Application
+Categories=Biology;Education;Science
+StartupNotify=true
