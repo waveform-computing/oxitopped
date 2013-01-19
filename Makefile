@@ -4,7 +4,6 @@
 PYTHON=python
 PYFLAGS=
 DEST_DIR=/
-PROJECT=oxitopdump
 
 # Calculate the base names of the distribution, the location of all source,
 # documentation and executable script files
@@ -19,6 +18,11 @@ DOC_SOURCES:=$(wildcard docs/*.rst)
 # Calculate the name of all outputs
 DIST_EGG=dist/$(NAME)-$(VER)-$(PYVER).egg
 DIST_EXE=dist/$(NAME)-$(VER).win32.exe
+DIST_RPM=dist/$(NAME)-$(VER)-1.src.rpm
+DIST_TAR=dist/$(NAME)-$(VER).tar.gz
+DIST_DEB=dist/$(NAME)_$(VER)-1~ppa1_all.deb
+MAN_DIR=build/sphinx/man
+MAN_PAGES=$(MAN_DIR)/oxitopdump.1 $(MAN_DIR)/oxitoplist.1
 
 # Default target
 all:
@@ -26,11 +30,19 @@ all:
 	@echo "make doc - Generate HTML and PDF documentation"
 	@echo "make source - Create source package"
 	@echo "make buildegg - Generate a PyPI egg package"
+	@echo "make buildrpm - Generate an RedHat package"
+	@echo "make builddeb - Generate a Debian package"
 	@echo "make buildexe - Generate a Windows exe installer"
 	@echo "make clean - Get rid of scratch and byte files"
+	@echo "make release - Create, tag, and upload a new release"
 
 install:
-	$(PYTHON) $(PYFLAGS) setup.py install --root $(DEST_DIR) $(COMPILE)
+	$(PYTHON) $(PYFLAGS) setup.py install --root $(DEST_DIR)
+
+doc: $(DOC_SOURCES)
+	$(PYTHON) $(PYFLAGS) setup.py build_sphinx -b html
+	$(PYTHON) $(PYFLAGS) setup.py build_sphinx -b latex
+	$(MAKE) -C build/sphinx/latex all-pdf
 
 source: $(DIST_TAR)
 
@@ -38,7 +50,11 @@ buildexe: $(DIST_EXE)
 
 buildegg: $(DIST_EGG)
 
-dist: $(DIST_EXE) $(DIST_EGG) $(DIST_TAR)
+buildrpm: $(DIST_RPM)
+
+builddeb: $(DIST_DEB)
+
+dist: $(DIST_EXE) $(DIST_EGG) $(DIST_RPM) $(DIST_DEB) $(DIST_TAR)
 
 develop: tags
 	$(PYTHON) $(PYFLAGS) setup.py develop
@@ -66,4 +82,41 @@ $(DIST_EGG): $(PY_SOURCES)
 
 $(DIST_EXE): $(PY_SOURCES)
 	$(PYTHON) $(PYFLAGS) setup.py bdist_wininst $(COMPILE)
+
+$(DIST_RPM): $(PY_SOURCES) $(MAN_PAGES)
+	$(PYTHON) $(PYFLAGS) setup.py bdist_rpm
+	# XXX Add man-pages to RPMs ... how?
+	#$(PYTHON) $(PYFLAGS) setup.py bdist_rpm --post-install=rpm/postinstall --pre-uninstall=rpm/preuninstall
+
+$(DIST_DEB): $(PY_SOURCES) $(MAN_PAGES)
+	# build the source package in the parent directory then rename it to
+	# project_version.orig.tar.gz
+	$(PYTHON) $(PYFLAGS) setup.py sdist --dist-dir=../
+	rename -f 's/$(NAME)-(.*)\.tar\.gz/$(NAME)_$$1\.orig\.tar\.gz/' ../*
+	debuild -b -i -I -Idist -Idocs -Ibuild/sphinx/doctrees -rfakeroot
+	mkdir -p dist/
+	mv ../$(NAME)_$(VER)-1~ppa1_all.deb dist/
+
+release: $(PY_SOURCES) $(DOC_SOURCES)
+	$(MAKE) clean
+	# ensure there are no current uncommitted changes
+	test -z "$(shell git status --porcelain)"
+	# update the changelog with new release information
+	dch --newversion $(VER)-1~ppa1 --controlmaint
+	# commit the changes and add a new tag
+	git commit debian/changelog -m "Updated changelog for release $(VER)"
+	git tag -s release-$(VER) -m "Release $(VER)"
+
+upload: $(PY_SOURCES) $(DOC_SOURCES)
+	$(MAKE) clean
+	# build a source archive and upload to PyPI
+	$(PYTHON) $(PYFLAGS) setup.py sdist upload
+	# build the deb source archive
+	$(PYTHON) $(PYFLAGS) setup.py build_sphinx -b man
+	$(PYTHON) $(PYFLAGS) setup.py sdist --dist-dir=../
+	rename -f 's/$(NAME)-(.*)\.tar\.gz/$(NAME)_$$1\.orig\.tar\.gz/' ../*
+	debuild -S -i -I -Idist -Idocs -Ibuild/sphinx/doctrees -rfakeroot
+	# prompt the user to upload it to the PPA
+	@echo "Now run 'dput waveform-ppa $(NAME)_$(VER)-1~ppa1_source.changes'"
+	@echo "from the home directory"
 

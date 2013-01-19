@@ -27,6 +27,8 @@ from __future__ import (
 from setuptools import setup, find_packages
 from utils import description, get_version, require_python
 
+HERE = os.path.abspath(os.path.dirname(__file__))
+
 # Workaround <http://bugs.python.org/issue10945>
 import codecs
 try:
@@ -74,20 +76,22 @@ ENTRY_POINTS = {
 def main():
     setup(
         name                 = 'oxitopdump',
-        version              = get_version('oxitopdump/__init__.py'),
+        version              = get_version(os.path.join(HERE, 'oxitopdump/__init__.py')),
         description          = 'A tool for extracting data from an OxiTop OC110 data logger',
-        long_description     = description('README.rst'),
+        long_description     = description(os.path.join(HERE, 'README.rst')),
+        classifiers          = CLASSIFIERS,
         author               = 'Dave Hughes',
         author_email         = 'dave@waveform.org.uk',
-        url                  = '',
+        url                  = 'https://github.com/waveform80/oxitopdump',
+        keywords             = 'science gas bottle oxitop',
         packages             = find_packages(exclude=['distribute_setup', 'utils']),
-        install_requires     = REQUIRES,
-        extras_require       = EXTRA_REQUIRES,
         include_package_data = True,
         platforms            = 'ALL',
+        install_requires     = REQUIRES,
+        extras_require       = EXTRA_REQUIRES,
         zip_safe             = False,
+        test_suite           = 'oxitopdump',
         entry_points         = ENTRY_POINTS,
-        classifiers          = CLASSIFIERS,
     )
 
 if __name__ == '__main__':
