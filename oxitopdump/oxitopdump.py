@@ -52,8 +52,8 @@ class DumpApplication(Application):
     {bottle.id}.
     """
 
-    def main(self, options, args):
-        super(DumpApplication, self).main(options, args)
+    def __init__(self):
+        super(DumpApplication, self).__init__()
         self.parser.set_defaults(
             delta=True,
             points=1,
@@ -68,7 +68,7 @@ class DumpApplication(Application):
             'number of points instead of actual readings')
 
     def main(self, options, args):
-        super(ListApplication, self).main(options, args)
+        super(DumpApplication, self).main(options, args)
         ext = os.path.splitext(args[-1])[-1].lower()
         try:
             if ext == '.csv':
