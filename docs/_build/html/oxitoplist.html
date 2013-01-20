@@ -1,0 +1,240 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>oxitoplist &mdash; oxitopdump 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="oxitopdump 0.1 documentation" href="index.html" />
+    <link rel="prev" title="Welcome!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="index.html" title="Welcome!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">oxitopdump 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="oxitoplist">
+<h1>oxitoplist<a class="headerlink" href="#oxitoplist" title="Permalink to this headline">¶</a></h1>
+<p>This utility lists the sample results stored on a connected OxiTop Data
+Logger. If bottle-serial values are specified, the details of those bottles
+and all heads attached to them will be displayed, otherwise a list of all
+available bottle serials provided. The bottle-serial values may include *,
+?, and [] wildcards.</p>
+<div class="section" id="synopsis">
+<h2>Synopsis<a class="headerlink" href="#synopsis" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><pre>$ oxitoplist [options] [bottle-serial]...</pre>
+</div>
+</div>
+<div class="section" id="description">
+<h2>Description<a class="headerlink" href="#description" title="Permalink to this headline">¶</a></h2>
+<dl class="option">
+<dt id="cmdoption-oxitoplist--version">
+<tt class="descname">--version</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist--version" title="Permalink to this definition">¶</a></dt>
+<dd><p>show program&#8217;s version number and exit</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-h">
+<tt class="descname">-h</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--help</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-h" title="Permalink to this definition">¶</a></dt>
+<dd><p>show this help message and exit</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-q">
+<tt class="descname">-q</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--quiet</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-q" title="Permalink to this definition">¶</a></dt>
+<dd><p>produce less console output</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-v">
+<tt class="descname">-v</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--verbose</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-v" title="Permalink to this definition">¶</a></dt>
+<dd><p>produce more console output</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-l">
+<tt class="descname">-l</tt><tt class="descclassname"> LOGFILE</tt><tt class="descclassname">, </tt><tt class="descname">--log-file</tt><tt class="descclassname">=LOGFILE</tt><a class="headerlink" href="#cmdoption-oxitoplist-l" title="Permalink to this definition">¶</a></dt>
+<dd><p>log messages to the specified file</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-D">
+<tt class="descname">-D</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--debug</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-D" title="Permalink to this definition">¶</a></dt>
+<dd><p>enables debug mode (runs under PDB)</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-p">
+<tt class="descname">-p</tt><tt class="descclassname"> PORT</tt><tt class="descclassname">, </tt><tt class="descname">--port</tt><tt class="descclassname">=PORT</tt><a class="headerlink" href="#cmdoption-oxitoplist-p" title="Permalink to this definition">¶</a></dt>
+<dd><p>specify the port which the OxiTop Data Logger is connected to. This will be
+something like /dev/ttyUSB0 on Linux or COM1 on Windows</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-r">
+<tt class="descname">-r</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--readings</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>if specified, output readings for each head after displaying bottle details</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-a">
+<tt class="descname">-a</tt><tt class="descclassname"></tt><tt class="descclassname">, </tt><tt class="descname">--absolute</tt><tt class="descclassname"></tt><a class="headerlink" href="#cmdoption-oxitoplist-a" title="Permalink to this definition">¶</a></dt>
+<dd><p>if specified with &#8211;readings, output absolute pressure values instead of
+deltas against the first value</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-oxitoplist-m">
+<tt class="descname">-m</tt><tt class="descclassname"> POINTS</tt><tt class="descclassname">, </tt><tt class="descname">--moving-average</tt><tt class="descclassname">=POINTS</tt><a class="headerlink" href="#cmdoption-oxitoplist-m" title="Permalink to this definition">¶</a></dt>
+<dd><p>if specified with &#8211;readings, output a moving average over the specified
+number of points instead of actual readings</p>
+</dd></dl>
+
+</div>
+<div class="section" id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="basic-usage">
+<h3>Basic Usage<a class="headerlink" href="#basic-usage" title="Permalink to this headline">¶</a></h3>
+<p>The most basic usage of oxitoplist is to dump a list of the bottles stored on
+the connected device:</p>
+<div class="highlight-python"><pre>$ oxitoplist -p /dev/ttyUSB0
+Serial    ID  Started    Finished   Complete Mode         Heads
+--------- --- ---------- ---------- -------- ------------ -----
+110222-06 999 2011-02-22 2011-03-08 Yes      Pressure 14d 1
+121119-03 3   2012-11-19 2012-11-22 Yes      Pressure 3d  1
+120323-01 1   2012-03-23 2012-04-20 Yes      Pressure 28d 2
+
+3 results returned</pre>
+</div>
+<p>If one or more bottle-serial numbers are listed on the command line (which may
+include wildcards), the details of the bottles listed are output instead:</p>
+<div class="highlight-python"><pre>$ oxitoplist -p /dev/ttyUSB0 12*
+
+Serial                 121119-03
+ID                     3
+Started                2012-11-19 13:53:04
+Finished               2012-11-19 13:53:04
+Readings Interval      0:12:00
+Completed              Yes
+Mode                   Pressure 3d
+Bottle Volume          510.0ml
+Sample Volume          432.0ml
+Dilution               1+0
+Desired no. of Values  360
+Actual no. of Values   0
+Heads                  1
+
+Serial                 120323-01
+ID                     1
+Started                2012-03-23 17:32:23
+Finished               2012-03-23 17:32:23
+Readings Interval      1:52:00
+Completed              Yes
+Mode                   Pressure 28d
+Bottle Volume          510.0ml
+Sample Volume          432.0ml
+Dilution               1+0
+Desired no. of Values  360
+Actual no. of Values   361
+Heads                  2</pre>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">oxitoplist</a><ul>
+<li><a class="reference internal" href="#synopsis">Synopsis</a></li>
+<li><a class="reference internal" href="#description">Description</a></li>
+<li><a class="reference internal" href="#examples">Examples</a><ul>
+<li><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome!</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/oxitoplist.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="index.html" title="Welcome!"
+             >previous</a> |</li>
+        <li><a href="index.html">oxitopdump 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Dave Hughes.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
