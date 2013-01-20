@@ -33,7 +33,8 @@ all:
 	@echo "make buildrpm - Generate an RedHat package"
 	@echo "make builddeb - Generate a Debian package"
 	@echo "make buildexe - Generate a Windows exe installer"
-	@echo "make clean - Get rid of scratch and byte files"
+	@echo "make dist - Generate all packages"
+	@echo "make clean - Get rid of all generated files"
 	@echo "make release - Create, tag, and upload a new release"
 
 install:
