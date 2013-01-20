@@ -24,6 +24,7 @@ from __future__ import (
     division,
     )
 
+import os
 from setuptools import setup, find_packages
 from utils import description, get_version, require_python
 
