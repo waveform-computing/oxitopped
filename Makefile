@@ -44,7 +44,7 @@ doc: $(DOC_SOURCES)
 	$(PYTHON) $(PYFLAGS) setup.py build_sphinx -b latex
 	$(MAKE) -C build/sphinx/latex all-pdf
 
-source: $(DIST_TAR)
+source: $(DIST_TAR) $(DIST_ZIP)
 
 buildexe: $(DIST_EXE)
 
@@ -54,7 +54,7 @@ buildrpm: $(DIST_RPM)
 
 builddeb: $(DIST_DEB)
 
-dist: $(DIST_EXE) $(DIST_EGG) $(DIST_RPM) $(DIST_DEB) $(DIST_TAR)
+dist: $(DIST_EXE) $(DIST_EGG) $(DIST_RPM) $(DIST_DEB) $(DIST_TAR) $(DIST_ZIP)
 
 develop: tags
 	$(PYTHON) $(PYFLAGS) setup.py develop
@@ -75,18 +75,23 @@ $(MAN_PAGES): $(DOC_SOURCES)
 	$(PYTHON) $(PYFLAGS) setup.py build_sphinx -b man
 
 $(DIST_TAR): $(PY_SOURCES)
-	$(PYTHON) $(PYFLAGS) setup.py sdist $(COMPILE)
+	$(PYTHON) $(PYFLAGS) setup.py sdist --formats gztar
+
+$(DIST_ZIP): $(PY_SOURCES)
+	$(PYTHON) $(PYFLAGS) setup.py sdist --formats zip
 
 $(DIST_EGG): $(PY_SOURCES)
-	$(PYTHON) $(PYFLAGS) setup.py bdist_egg $(COMPILE)
+	$(PYTHON) $(PYFLAGS) setup.py bdist_egg
 
 $(DIST_EXE): $(PY_SOURCES)
-	$(PYTHON) $(PYFLAGS) setup.py bdist_wininst $(COMPILE)
+	$(PYTHON) $(PYFLAGS) setup.py bdist_wininst
 
 $(DIST_RPM): $(PY_SOURCES) $(MAN_PAGES)
-	$(PYTHON) $(PYFLAGS) setup.py bdist_rpm
+	$(PYTHON) $(PYFLAGS) setup.py bdist_rpm \
+		--source-only \
+		--doc-files README.rst,LICENSE.txt \
+		--requires python,python-matplotlib,python-qt4
 	# XXX Add man-pages to RPMs ... how?
-	#$(PYTHON) $(PYFLAGS) setup.py bdist_rpm --post-install=rpm/postinstall --pre-uninstall=rpm/preuninstall
 
 $(DIST_DEB): $(PY_SOURCES) $(MAN_PAGES)
 	# build the source package in the parent directory then rename it to
@@ -95,7 +100,7 @@ $(DIST_DEB): $(PY_SOURCES) $(MAN_PAGES)
 	rename -f 's/$(NAME)-(.*)\.tar\.gz/$(NAME)_$$1\.orig\.tar\.gz/' ../*
 	debuild -b -i -I -Idist -Idocs -Ibuild/sphinx/doctrees -rfakeroot
 	mkdir -p dist/
-	mv ../$(NAME)_$(VER)-1~ppa1_all.deb dist/
+	cp ../$(NAME)_$(VER)-1~ppa1_all.deb dist/
 
 release: $(PY_SOURCES) $(DOC_SOURCES)
 	$(MAKE) clean

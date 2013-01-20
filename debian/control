@@ -8,18 +8,10 @@ Standards-Version: 3.9.3
 X-Python-Version: >= 2.6
 
 Package: oxitopdump
-Architecture: any
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python-serial, python-matplotlib, python-qt4, python-optcomplete
 Suggests: python-xlwt
 Description: Tools for interacting with an OxiTop OC110 Data Logger.
- oxitopdump is a small suite of utilies for extracting data from an OxiTop data
- logger via a serial (RS-232) port and dumping it to a specified file in
- various formats. Options are provided for controlling the output, and for
- listing the content of the device.
-
-Package: oxitopdump-doc
-Architecture: all
-Description: Documentation for oxitopdump.
  oxitopdump is a small suite of utilies for extracting data from an OxiTop data
  logger via a serial (RS-232) port and dumping it to a specified file in
  various formats. Options are provided for controlling the output, and for
