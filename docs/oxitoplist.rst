@@ -66,11 +66,8 @@ Description
 Examples
 ========
 
-Basic Usage
------------
-
-The most basic usage of oxitoplist is to dump a list of the bottles stored on
-the connected device::
+The basic usage of oxitoplist is to dump a list of the bottles stored on the
+connected device::
 
     $ oxitoplist -p /dev/ttyUSB0
     Serial    ID  Started    Finished   Complete Mode         Heads
@@ -81,8 +78,8 @@ the connected device::
 
     3 results returned
 
-If one or more bottle-serial numbers are listed on the command line (which may
-include wildcards), the details of the bottles listed are output instead::
+If one or more *bottle-serial* numbers are listed on the command line (which
+may include wildcards), the details of the bottles listed are output instead::
 
     $ oxitoplist -p /dev/ttyUSB0 12*
 
@@ -114,3 +111,47 @@ include wildcards), the details of the bottles listed are output instead::
     Actual no. of Values   361
     Heads                  2
 
+The :option:`-r` option can be used to include the readings from selected
+bottles. These are excluded by default as it's probably more useful to use
+`oxitopdump` for those purposes::
+
+    $ oxitoplist -p /dev/ttyUSB0 -r 110222-06
+
+    Serial                 110222-06
+    ID                     999
+    Started                2011-02-22 16:54:55
+    Finished               2011-02-22 16:54:55
+    Readings Interval      0:56:00
+    Completed              Yes
+    Mode                   Pressure 14d
+    Bottle Volume          510.0ml
+    Sample Volume          432.0ml
+    Dilution               1+0
+    Desired no. of Values  360
+    Actual no. of Values   361
+    Heads                  1
+
+                        Head 
+    Timestamp           60108
+    ------------------- -----
+    2011-02-22 16:54:55 0.0  
+    2011-02-22 17:50:55 -5.0 
+    2011-02-22 18:46:55 -5.0 
+    2011-02-22 19:42:55 -5.0 
+    2011-02-22 20:38:55 -5.0 
+    2011-02-22 21:34:55 -5.0 
+    2011-02-22 22:30:55 -6.0 
+    2011-02-22 23:26:55 -5.0 
+    2011-02-23 00:22:55 -5.0 
+    ...
+    2011-03-08 11:18:55 -8.0 
+    2011-03-08 12:14:55 -8.0 
+    2011-03-08 13:10:55 -8.0 
+    2011-03-08 14:06:55 -8.0 
+    2011-03-08 15:02:55 -8.0 
+    2011-03-08 15:58:55 -9.0 
+    2011-03-08 16:54:55 -8.0 
+
+Readings are always given in chronological order and are delta readings by
+default. If you want the absolute pressure readings, use the :option:`-a`
+option.
