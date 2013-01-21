@@ -270,115 +270,31 @@ class BottleExporter(BaseExporter):
         "Export the bottle readings to a CSV file"
         dialog = ExportCsvDialog(self.parent)
         if dialog.exec_():
-            import csv
-            analyzer = self.parent.model.analyzer
-            with io.open(filename, 'wb') as output_file:
-                writer = csv.writer(output_file,
-                    delimiter=dialog.delimiter,
-                    lineterminator=dialog.lineterminator,
-                    quotechar=dialog.quotechar,
-                    quoting=dialog.quoting,
-                    doublequote=csv.excel.doublequote)
-                if dialog.header_row:
-                    writer.writerow([
-                        'No.',
-                        'Timestamp',
-                        'Offset',
-                        ] + [
-                        'Head %s' % head.serial
-                        for head in analyzer.bottle.heads
-                        ])
-                for row in izip_longest(
-                        range(len(analyzer.timestamps)),
-                        analyzer.timestamps,
-                        (str(t - analyzer.bottle.start) for t in analyzer.timestamps),
-                        *analyzer.heads):
-                    writer.writerow(row)
+            from oxitopdump.export_csv import CsvExporter
+            exporter = CsvExporter()
+            exporter.delimiter = dialog.delimiter
+            exporter.lineterminator = dialog.lineterminator
+            exporter.quotechar = dialog.quotechar
+            exporter.quoting = dialog.quoting
+            exporter.header_row = dialog.header_row
+            exporter.timestamp_format = dialog.timestamp_format
+            exporter.export_bottle(
+                filename,
+                self.parent.model.analyzer.bottle,
+                delta=self.parent.model.delta,
+                points=self.parent.model.points)
 
     def export_excel(self, filename):
         "Export the bottle list to an Excel file"
         dialog = ExportExcelDialog(self.parent)
         if dialog.exec_():
-            import xlwt
-            analyzer = self.parent.model.analyzer
-            header_style = xlwt.easyxf('font: bold on')
-            even_default_style = xlwt.easyxf('')
-            even_text_style = xlwt.easyxf(num_format_str='@')
-            even_date_style = xlwt.easyxf(num_format_str='ddd d mmm yyyy hh:mm:ss')
-            odd_default_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue')
-            odd_text_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue', num_format_str='@')
-            odd_date_style = xlwt.easyxf('pattern: pattern solid, fore_color ice_blue', num_format_str='ddd d mmm yyyy hh:mm:ss')
-            workbook = xlwt.Workbook()
-            # Create the bottle details sheet
-            worksheet = workbook.add_sheet('Bottle %s' % analyzer.bottle.serial)
-            data = (
-                ('Bottle Serial',         analyzer.bottle.serial),
-                ('Bottle ID',             analyzer.bottle.id),
-                ('Bottle Volume',         analyzer.bottle.bottle_volume),
-                ('Sample Volume',         analyzer.bottle.sample_volume),
-                ('Dilution',              '1+%d' % analyzer.bottle.dilution),
-                ('Measurement Mode',      analyzer.bottle.mode_string),
-                ('Measurement Complete',  analyzer.bottle.finish < datetime.now()),
-                ('Start Timestamp',       analyzer.bottle.start),
-                ('Finish Timestamp',      analyzer.bottle.finish),
-                ('Desired no. of Values', analyzer.bottle.expected_measurements),
-                ('Actual no. of Values',  analyzer.bottle.actual_measurements),
-                )
-            for row, row_data in enumerate(data):
-                for col, value in enumerate(row_data):
-                    if col == 0:
-                        worksheet.write(row, col, value, header_style)
-                    elif isinstance(value, datetime):
-                        worksheet.write(row, col, value, even_date_style)
-                    elif isinstance(value, basestring):
-                        worksheet.write(row, col, value, even_text_style)
-                    else:
-                        worksheet.write(row, col, value, even_default_style)
-            worksheet.col(0).width = 22 * 256
-            worksheet.col(1).width = 24 * 256
-            # Create the bottle readings sheet
-            worksheet = workbook.add_sheet('Readings')
-            row = 0
-            if dialog.header_row:
-                data = [
-                    'No.',
-                    'Timestamp',
-                    'Offset',
-                    ] + [
-                    'Head %s' % head.serial
-                    for head in analyzer.bottle.heads
-                    ]
-                for col, value in enumerate(data):
-                    worksheet.write(row, col, value, header_style)
-                row += 1
-                # Freeze the header row at the top of the sheet
-                worksheet.panes_frozen = True
-                worksheet.horz_split_pos = 1
-            for data in izip_longest(
-                    range(len(analyzer.timestamps)),
-                    analyzer.timestamps,
-                    (str(t - analyzer.bottle.start) for t in analyzer.timestamps),
-                    *analyzer.heads):
-                if dialog.row_colors:
-                    (default_style, text_style, date_style) = [
-                        (even_default_style, even_text_style, even_date_style),
-                        (odd_default_style, odd_text_style, odd_date_style)
-                        ][data[0] % 2]
-                else:
-                    (default_style, text_style, date_style) = (
-                        even_default_style, even_text_style, even_date_style
-                        )
-                for col, value in enumerate(data):
-                    if isinstance(value, datetime):
-                        worksheet.write(row, col, value, date_style)
-                    elif isinstance(value, basestring):
-                        worksheet.write(row, col, value, text_style)
-                    else:
-                        worksheet.write(row, col, value, default_style)
-                row += 1
-            worksheet.col(0).width = 4 * 256
-            worksheet.col(1).width = 24 * 256
-            worksheet.col(2).width = 24 * 256
-            workbook.save(filename)
-
+            from oxitopdump.export_xls import ExcelExporter
+            exporter = ExcelExporter()
+            exporter.header_row = dialog.header_row
+            exporter.row_colors = dialog.row_colors
+            exporter.export_bottle(
+                filename,
+                self.parent.model.analyzer.bottle,
+                delta=self.parent.model.delta,
+                points=self.parent.model.points)
 

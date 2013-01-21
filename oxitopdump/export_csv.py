@@ -33,9 +33,9 @@ from itertools import izip_longest
 from oxitopdump.bottles import DataAnalyzer
 
 
-class CsvExporter(Exporter):
+class CsvExporter(object):
     def __init__(self):
-        super(CsvExporter).__init__()
+        super(CsvExporter, self).__init__()
         self.delimiter = ','
         self.lineterminator = '\r\n'
         self.quotechar = '"'

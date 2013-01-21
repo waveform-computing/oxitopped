@@ -33,13 +33,15 @@ from PyQt4 import QtCore, QtGui
 
 # Optional imports for file-export functionality
 try:
-    import csv
+    import oxitopdump.export_csv
+    csv = True
 except ImportError:
-    csv = None
+    csv = False
 try:
-    import xlwt
+    import oxitopdump.export_xls
+    xls = True
 except ImportError:
-    xlwt = None
+    xls = False
 
 
 class BaseExporter(object):
@@ -55,7 +57,7 @@ class BaseExporter(object):
         if csv:
             exports['.csv'] = (
                 self.parent.tr('CSV - Comma separated values files'), self.export_csv)
-        if xlwt:
+        if xls:
             exports['.xls'] = (
                 self.parent.tr('XLS - Excel files'), self.export_excel)
         if not exports:
