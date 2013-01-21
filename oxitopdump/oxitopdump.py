@@ -69,6 +69,8 @@ class DumpApplication(Application):
 
     def main(self, options, args):
         super(DumpApplication, self).main(options, args)
+        if len(args) < 1:
+            self.parser.error('you must specify an output filename')
         ext = os.path.splitext(args[-1])[-1].lower()
         try:
             if ext == '.csv':
