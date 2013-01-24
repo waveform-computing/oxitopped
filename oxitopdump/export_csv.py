@@ -36,16 +36,19 @@ from oxitopdump.bottles import DataAnalyzer
 class CsvExporter(object):
     def __init__(self):
         super(CsvExporter, self).__init__()
-        self.delimiter = ','
-        self.lineterminator = '\r\n'
-        self.quotechar = '"'
+        self.delimiter = b','
+        self.lineterminator = b'\r\n'
+        self.quotechar = b'"'
         self.quoting = csv.QUOTE_MINIMAL
         self.header_row = True
         self.timestamp_format = '%Y-%m-%d %H:%M:%S'
 
-    def export_bottles(self, filename, bottles):
-        with io.open(filename, 'wb') as output_file:
-            writer = csv.writer(output_file,
+    def export_bottles(self, filename_or_obj, bottles):
+        owned = not hasattr(filename_or_obj, 'write')
+        if owned:
+            filename_or_obj = io.open(filename_or_obj, 'wb')
+        try:
+            writer = csv.writer(filename_or_obj,
                 delimiter=self.delimiter,
                 lineterminator=self.lineterminator,
                 quotechar=self.quotechar,
@@ -76,11 +79,17 @@ class CsvExporter(object):
                     len(bottle.heads),
                     )
                 writer.writerow(row)
+        finally:
+            if owned:
+                filename_or_obj.close()
 
-    def export_bottle(self, filename, bottle, delta=True, points=1):
-        analyzer = DataAnalyzer(bottle, delta=delta, points=points)
-        with io.open(filename, 'wb') as output_file:
-            writer = csv.writer(output_file,
+    def export_bottle(self, filename_or_obj, bottle, delta=True, points=1):
+        owned = not hasattr(filename_or_obj, 'write')
+        if owned:
+            filename_or_obj = io.open(filename_or_obj, 'wb')
+        try:
+            analyzer = DataAnalyzer(bottle, delta=delta, points=points)
+            writer = csv.writer(filename_or_obj,
                 delimiter=self.delimiter,
                 lineterminator=self.lineterminator,
                 quotechar=self.quotechar,
@@ -101,4 +110,7 @@ class CsvExporter(object):
                     (str(t - analyzer.bottle.start) for t in analyzer.timestamps),
                     *analyzer.heads):
                 writer.writerow(row)
+        finally:
+            if owned:
+                filename_or_obj.close()
 

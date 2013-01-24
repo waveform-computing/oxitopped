@@ -26,6 +26,7 @@ from __future__ import (
     division,
     )
 
+from datetime import datetime
 from itertools import izip_longest
 
 import xlwt
@@ -39,7 +40,7 @@ class ExcelExporter(object):
         self.header_row = True
         self.row_colors = True
 
-    def export_bottles(self, filename, bottles):
+    def export_bottles(self, filename_or_obj, bottles):
         header_style = xlwt.easyxf('font: bold on')
         even_default_style = xlwt.easyxf('')
         even_text_style = xlwt.easyxf(num_format_str='@')
@@ -99,9 +100,9 @@ class ExcelExporter(object):
         worksheet.col(1).width = 4 * 256
         worksheet.col(2).width = 24 * 256
         worksheet.col(3).width = 24 * 256
-        workbook.save(filename)
+        workbook.save(filename_or_obj)
 
-    def export_bottle(self, filename, bottle, delta=True, points=1):
+    def export_bottle(self, filename_or_obj, bottle, delta=True, points=1):
         analyzer = DataAnalyzer(bottle, delta=delta, points=points)
         header_style = xlwt.easyxf('font: bold on')
         even_default_style = xlwt.easyxf('')
@@ -181,5 +182,5 @@ class ExcelExporter(object):
         worksheet.col(0).width = 4 * 256
         worksheet.col(1).width = 24 * 256
         worksheet.col(2).width = 24 * 256
-        workbook.save(filename)
+        workbook.save(filename_or_obj)
 
