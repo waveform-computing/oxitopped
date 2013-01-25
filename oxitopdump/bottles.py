@@ -42,6 +42,7 @@ import logging
 from datetime import datetime, timedelta
 from collections import deque
 from itertools import islice
+from threading import Thread
 
 import serial
 
@@ -480,22 +481,11 @@ class DataLogger(object):
     `progress` : (optional) triple of progress reporting functions (start, update, finish)
     """
 
-    def __init__(self, port, timeout=5, retries=3, progress=None):
-        if timeout is None or timeout == 0:
-            raise ValueError('timeout must be a positive integer')
-        if port == 'TEST':
-            port_class = DummySerial
-        else:
-            port_class = serial.Serial
-        logging.debug('Opening serial port %s' % port)
-        self.port = port_class(
-            port,
-            baudrate=9600,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            timeout=timeout,
-            rtscts=True)
+    def __init__(self, port, retries=3, progress=None):
+        super(DataLogger, self).__init__()
+        self.port = port
+        if self.port.timeout is None or self.port.timeout == 0:
+            raise ValueError('serial port timeout must be a positive integer')
         self.retries = retries
         self._progress_start = self._progress_update = self._progress_finish = None
         if progress is not None:
@@ -507,7 +497,7 @@ class DataLogger(object):
         self._seen_prompt = False
         # Ensure the port is connected to an OC110 by requesting the
         # manufacturer's ID
-        logging.debug('Testing for known response from MAID command')
+        logging.debug('DTE: Testing for known response from MAID command')
         self.port.flushInput()
         self.id = self._MAID().rstrip('\r')
         if self.id != 'OC110':
@@ -526,16 +516,16 @@ class DataLogger(object):
         # raised in response
         check_response = False
         response = ''
+        self.port.setRTS()
         if not self.port.getCTS():
-            logging.debug('CTS not set, setting RTS')
+            logging.debug('DTE: CTS not set, setting RTS')
             cts_wait = time.time() + self.port.timeout
-            self.port.setRTS()
             while not self.port.getCTS():
                 time.sleep(0.1)
                 if time.time() > cts_wait:
                     raise HandshakeFailed(
                         'Failed to detect readiness with RTS/CTS handshake')
-            logging.debug('CTS set')
+                    logging.debug('DTE: CTS set')
             # Read anything the unit sends through; if it's just booted up
             # there's probably some BIOS crap to ignore
             check_response = True
@@ -543,7 +533,7 @@ class DataLogger(object):
         # If we've still not yet seen the ">" prompt, hit enter and see if we
         # get one back
         if not self._seen_prompt:
-            logging.debug('No prompt seen, prodding unit with Enter')
+            logging.debug('DTE: No prompt seen, prodding unit with Enter')
             self.port.write('\r')
             check_response = True
             response += self._rx(checksum=False)
@@ -554,7 +544,7 @@ class DataLogger(object):
             raise UnexpectedReply(
                 'Expected LOGON or INVALID COMMAND, but got %s' % repr(response))
         data = ','.join([command] + [str(arg) for arg in args]) + '\r'
-        logging.debug('TX: %s' % data.rstrip('\r'))
+        logging.debug('DTE TX: %s' % data.rstrip('\r'))
         written = self.port.write(data)
         if written != len(data):
             raise PartialSend(
@@ -580,7 +570,7 @@ class DataLogger(object):
                     # unit startup and mess up line splits later on
                     continue
                 elif data == '\r':
-                    logging.debug('RX: %s' % response.split('\r')[-1])
+                    logging.debug('DTE RX: %s' % response.split('\r')[-1])
                     if self._progress_update:
                         self._progress_update()
                 response += data
@@ -722,45 +712,27 @@ class DataLogger(object):
         self._bottles = None
 
 
-class DummySerial(object):
+class DummyLogger(Thread):
     """
-    Emulates the serial port of an OxiTop OC110 Data Logger for testing.
+    Emulates an OxiTop OC110 Data Logger for testing. Can be combined with
+    DummySerial below for a complete testing solution without having to involve
+    a physical serial port.
 
-    `baudrate` : the baud-rate to emulate, defaults to 9600
+    `port` : the serial port that the emulated data logger should listen to
     """
 
-    def __init__(self, port=None, baudrate=9600, bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-            timeout=None, xonxoff=False, rtscts=False, writeTimeout=None,
-            dsrdtr=False, interCharTimeout=None):
+    def __init__(self, port):
+        super(DummyLogger, self).__init__()
+        self.terminated = False
+        self.daemon = True
         self.port = port
-        self.name = port
-        self.baudrate = baudrate
-        self.bytesize = bytesize
-        self.parity = parity
-        self.stopbits = stopbits
-        self.timeout = timeout
-        self.xonxoff = xonxoff
-        self.rtscts = rtscts
-        self.dsrdtr = dsrdtr
-        self.writeTimeout = writeTimeout
-        self.interCharTimeout = interCharTimeout
-        self._cts_high = None
-        self._read_buf = []
-        self._write_buf = ''
-        self._opened = bool(self.port)
-        #assert self.baudrate == 9600
-        assert self.bytesize == serial.EIGHTBITS
-        assert self.parity == serial.PARITY_NONE
-        assert self.stopbits == serial.STOPBITS_ONE
-        # On start-up, device sends some BIOS stuff, but as the port isn't
-        # usually open at this point it typically gets lost/ignored. Is there
-        # some decent way to emulate this?
-        self._send('\0\r\n')
-        self._send('BIOS OC Version 1.0\r\n')
+        assert self.port.timeout > 0
+        assert self.port.bytesize == serial.EIGHTBITS
+        assert self.port.parity == serial.PARITY_NONE
+        assert self.port.stopbits == serial.STOPBITS_ONE
         # Set up the list of gas bottles and pressure readings
-        self._bottles = []
-        self._bottles.append(Bottle(
+        self.bottles = []
+        self.bottles.append(Bottle(
             serial='110222-06',
             id=999,
             start=datetime(2011, 2, 22, 16, 54, 55),
@@ -772,8 +744,8 @@ class DummySerial(object):
             sample_volume=432,
             dilution=0
             ))
-        self._bottles[-1].heads.append(BottleHead(
-            self._bottles[-1],
+        self.bottles[-1].heads.append(BottleHead(
+            self.bottles[-1],
             serial='60108',
             readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
@@ -808,7 +780,7 @@ class DummySerial(object):
                 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 961,
                 962,
                 ]))
-        self._bottles.append(Bottle(
+        self.bottles.append(Bottle(
             serial='121119-03',
             id=3,
             start=datetime(2012, 11, 19, 13, 53, 4),
@@ -820,11 +792,11 @@ class DummySerial(object):
             sample_volume=432,
             dilution=0
             ))
-        self._bottles[-1].heads.append(BottleHead(
-            self._bottles[-1],
+        self.bottles[-1].heads.append(BottleHead(
+            self.bottles[-1],
             serial='60108',
             readings=[]))
-        self._bottles.append(Bottle(
+        self.bottles.append(Bottle(
             serial='120323-01',
             id=1,
             start=datetime(2012, 3, 23, 17, 32, 23),
@@ -836,8 +808,8 @@ class DummySerial(object):
             sample_volume=432,
             dilution=0
             ))
-        self._bottles[-1].heads.append(BottleHead(
-            self._bottles[-1],
+        self.bottles[-1].heads.append(BottleHead(
+            self.bottles[-1],
             serial='60145',
             readings=[
                 976, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963, 963,
@@ -872,8 +844,8 @@ class DummySerial(object):
                 959, 960, 959, 960, 960, 959, 960, 959, 959, 960, 959, 959,
                 960,
                 ]))
-        self._bottles[-1].heads.append(BottleHead(
-            self._bottles[-1],
+        self.bottles[-1].heads.append(BottleHead(
+            self.bottles[-1],
             serial='60143',
             readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
@@ -908,6 +880,159 @@ class DummySerial(object):
                 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 962, 961,
                 962,
                 ]))
+        # Start the emulator thread
+        self.start()
+
+    def run(self):
+        """
+        The main method of the background thread. Waits for OC110 commands and
+        acts upon them when received.
+        """
+        buf = ''
+        if not self.port.isOpen():
+            self.port.open()
+        # On start-up, device sends some BIOS crap, regardless of whether or
+        # not anything is listening
+        self.port.setRTS()
+        self.port.write('\0\r\n')
+        self.port.write('BIOS OC Version 1.0\r\n')
+        while not self.terminated:
+            print('Running')
+            buf += self.port.read().decode('ASCII')
+            while '\r' in buf:
+                command, buf = buf.split('\r', 1)
+                logging.debug('DCE RX: %s' % command)
+                if ',' in command:
+                    command = command.split(',')
+                    command, args = command[0], command[1:]
+                else:
+                    args = []
+                self.handle(command, *args)
+
+    def send(self, data, checksum=False):
+        """
+        Sends data over the serial port with an optional checksum suffix. The
+        method ensures the port is open, RTS is set, and CTS is received before
+        beginning transmission.
+        """
+        # Wait up to the port's timeout for CTS
+        if not self.port.getCTS():
+            self.port.setRTS()
+            cts_wait = time.time() + self.port.timeout
+            while not self.port.getCTS():
+                time.sleep(0.1)
+                if time.time() > cts_wait:
+                    raise ValueError(
+                        'Failed to detect readiness with RTS/CTS handshake')
+        for line in data.strip('\r').split('\r'):
+            logging.debug('DCE TX: %s' % line)
+        self.port.write(data)
+        if checksum:
+            value = sum(ord(c) for c in data)
+            self.send(',%d\r' % value, checksum=False)
+
+    def handle(self, command, *args):
+        """
+        Executes the OC110 ``command`` with the specified ``args``
+        """
+        if command == 'MAID':
+            # MAnufacturer IDentifier; OC110 sends 'OC110'
+            self.send('OC110\r')
+        elif command == 'CLOC':
+            # CLOse Connection; OC110 sends a return, a prompt, pauses, then
+            # sends a NUL char, and finally the 'LOGON' prompt
+            self.send('\r')
+            self.send('>\r')
+            self.port.setRTS(False)
+            self.port.close()
+            # Emulate the unit taking a half second to reboot
+            time.sleep(0.5)
+            self.port.write('LOGON\r')
+        elif command == 'GAPB':
+            # Get All Pressure Bottles command returns the header details of
+            # all bottles and their heads
+            data = ''.join(str(bottle) for bottle in self.bottles)
+            self.send(data, checksum=True)
+        elif command == 'GPRB':
+            # Get PRessure Bottle command returns the details of the specified
+            # bottle and its heads
+            if len(args) != 1:
+                self.send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self.bottle_by_serial(args[0])
+                except ValueError:
+                    self.send('INVALID BOTTLE\r')
+                else:
+                    self.send(str(bottle), checksum=True)
+        elif command == 'GSNS':
+            # No idea what GSNS does. Accepts a bottle serial and returns
+            # nothing...
+            if len(args) != 1:
+                self.send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self.bottle_by_serial(args[0])
+                except ValueError:
+                    self.send('INVALID BOTTLE\r')
+        elif command.startswith('GMSK'):
+            # GMSK returns all readings from a specified bottle head
+            if len(args) != 2:
+                self.send('INVALID ARGS\r')
+            else:
+                try:
+                    bottle = self.bottle_by_serial(args[0])
+                except ValueError:
+                    self.send('INVALID BOTTLE\r')
+                for head in bottle.heads:
+                    if head.serial == args[1]:
+                        break
+                    head = None
+                if not head:
+                    self.send('INVALID HEAD\r')
+                self.send(str(head.readings), checksum=True)
+        else:
+            self.send('INVALID COMMAND\r')
+        self.send('>\r')
+
+    def bottle_by_serial(self, serial):
+        if '-' not in serial:
+            serial = '%s-%s' % (serial[:-2], serial[-2:])
+        for bottle in self.bottles:
+            if bottle.serial == serial:
+                return bottle
+        raise ValueError('%s is not a valid bottle serial number')
+
+
+class NullModem(object):
+    """
+    Emulates one end of a null modem. Don't construct this class directly, but
+    use the null_modem routine below to construct both ends of the null-modem.
+    All parameters are equivalent to the pyserial Serial class.
+    """
+
+    def __init__(self, port=None, baudrate=9600, bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+            timeout=None, xonxoff=False, rtscts=False, writeTimeout=None,
+            dsrdtr=False, interCharTimeout=None):
+        super(NullModem, self).__init__()
+        self.port = port
+        self.name = port
+        self.baudrate = baudrate
+        self.bytesize = bytesize
+        self.parity = parity
+        self.stopbits = stopbits
+        self.timeout = timeout
+        self.xonxoff = xonxoff
+        self.rtscts = rtscts
+        self.dsrdtr = dsrdtr
+        self.writeTimeout = writeTimeout
+        self.interCharTimeout = interCharTimeout
+        self._other = None
+        self._rts = False
+        self._dtr = False
+        self._buf = [] # XXX Should use a deque for this
+        self._opened = bool(self.port)
 
     def readable(self):
         return True
@@ -926,14 +1051,17 @@ class DummySerial(object):
         assert self._opened
         self._opened = False
 
+    def isOpen(self):
+        return self._opened
+
     def flush(self):
         pass
 
     def flushInput(self):
-        self._read_buf = []
+        self._buf = []
 
     def flushOutput(self):
-        self._write_buf = ''
+        pass
 
     def nonblocking(self):
         raise NotImplementedError
@@ -951,28 +1079,21 @@ class DummySerial(object):
         raise NotImplementedError
 
     def setRTS(self, level=True):
-        if level and self._cts_high is None:
-            # Emulate the unit taking half a second to wake up and send the
-            # LOGON message and prompt
-            self._cts_high = time.time() + 0.5
-            self._send('LOGON\r')
-            self._send('>\r')
-        else:
-            self._cts_high = None
+        self._rts = level
 
     def getCTS(self):
-        return (self._cts_high is not None) and (time.time() > self._cts_high)
+        return self._other._rts
 
     def setDTR(self, level=True):
-        raise NotImplementedError
+        self._dtr = level
 
     def getDSR(self):
-        raise NotImplementedError
-
-    def getRI(self):
-        raise NotImplementedError
+        return self._other.dtr
 
     def getCD(self):
+        raise self._other.dtr
+
+    def getRI(self):
         raise NotImplementedError
 
     def readinto(self, b):
@@ -980,125 +1101,51 @@ class DummySerial(object):
         raise NotImplementedError
 
     def inWaiting(self):
-        return sum(1 for (c, t) in self._read_buf if t < time.time())
+        return len(self._buf)
 
     def read(self, size=1):
-        if not self._opened:
-            raise ValueError('port is closed')
+        assert self._opened
         start = time.time()
         now = start
         result = ''
         while len(result) < size:
-            if self._read_buf and self._read_buf[0][1] < now:
-                result += self._read_buf[0][0]
-                del self._read_buf[0]
+            if self._buf:
+                result += self._buf[0]
+                del self._buf[0]
             else:
                 time.sleep(0.1)
             now = time.time()
             if self.timeout is not None and now > start + self.timeout:
                 break
         assert len(result) <= size
-        return result.encode('ASCII')
+        return result
 
     def write(self, data):
-        if not self._opened:
-            raise ValueError('port is closed')
-        # Pause for the amount of time it would take to send data
-        time.sleep(len(data) * 10 / self.baudrate)
-        self._write_buf += data.decode('ASCII')
-        while '\r' in self._write_buf:
-            command, self._write_buf = self._write_buf.split('\r', 1)
-            if ',' in command:
-                command = command.split(',')
-                command, args = command[0], command[1:]
-            else:
-                args = []
-            self._process(command, *args)
+        assert self._opened
+        for byte in data:
+            self._other._buf.append(byte)
+            # Pause for the amount of time it would take to send data
+            time.sleep(1.0 / self.baudrate)
         return len(data)
 
-    def _bottle_by_serial(self, serial):
-        if '-' not in serial:
-            serial = '%s-%s' % (serial[:-2], serial[-2:])
-        for bottle in self._bottles:
-            if bottle.serial == serial:
-                return bottle
-        raise ValueError('%s is not a valid bottle serial number')
 
-
-    def _process(self, command, *args):
-        if command == 'MAID':
-            # MAnufacturer IDentifier; OC110 sends 'OC110'
-            self._send('OC110\r')
-        elif command == 'CLOC':
-            # CLOse Connection; OC110 sends a return, a prompt, pauses, then
-            # sends a NUL char, and finally the 'LOGON' prompt
-            self._send('\r')
-            self._send('>\r')
-            self._cts_high = time.time() + 0.5
-            self._send('\0')
-            self._send('LOGON\r')
-        elif command == 'GAPB':
-            # Get All Pressure Bottles command returns the header details of
-            # all bottles and their heads
-            data = ''.join(str(bottle) for bottle in self._bottles)
-            self._send(data, checksum=True)
-        elif command == 'GPRB':
-            # Get PRessure Bottle command returns the details of the specified
-            # bottle and its heads
-            if len(args) != 1:
-                self._send('INVALID ARGS\r')
-            else:
-                try:
-                    bottle = self._bottle_by_serial(args[0])
-                except ValueError:
-                    self._send('INVALID BOTTLE\r')
-                else:
-                    self._send(str(bottle), checksum=True)
-        elif command == 'GSNS':
-            # No idea what GSNS does. Accepts a bottle serial and returns
-            # nothing...
-            if len(args) != 1:
-                self._send('INVALID ARGS\r')
-            else:
-                try:
-                    bottle = self._bottle_by_serial(args[0])
-                except ValueError:
-                    self._send('INVALID BOTTLE\r')
-        elif command.startswith('GMSK'):
-            # GMSK returns all readings from a specified bottle head
-            if len(args) != 2:
-                self._send('INVALID ARGS\r')
-            else:
-                try:
-                    bottle = self._bottle_by_serial(args[0])
-                except ValueError:
-                    self._send('INVALID BOTTLE\r')
-                for head in bottle.heads:
-                    if head.serial == args[1]:
-                        break
-                    head = None
-                if not head:
-                    self._send('INVALID HEAD\r')
-                self._send(str(head.readings), checksum=True)
-        else:
-            self._send('INVALID COMMAND\r')
-        self._send('>\r')
-
-    def _send(self, response, checksum=False):
-        # If the port isn't open, just chuck away anything that gets sent
-        if self._opened:
-            # Transmission settings are 8-N-1, so cps of transmission is
-            # self.baudrate / 10. Delay between characters is the reciprocal of
-            # this
-            delay = 10 / self.baudrate
-            if self._read_buf:
-                when = self._read_buf[-1][1]
-            else:
-                when = time.time()
-            for char in response:
-                when += delay
-                self._read_buf.append((char, when))
-            if checksum:
-                value = sum(ord(c) for c in response)
-                self._send(',%d\r' % value, checksum=False)
+def null_modem(
+        baudrate=9600, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE, timeout=None, xonxoff=False,
+        rtscts=False, writeTimeout=None, dsrdtr=False, interCharTimeout=None):
+    """
+    Construct both ends of a null-modem cable, returning a tuple of two serial
+    ports. All parameters are the same as the pyserial Serial class.
+    """
+    port1 = NullModem(
+            'TEST', baudrate, bytesize, parity, stopbits, timeout,
+            xonxoff, rtscts, writeTimeout, dsrdtr, interCharTimeout
+            )
+    port2 = NullModem(
+            'TEST', baudrate, bytesize, parity, stopbits, timeout,
+            xonxoff, rtscts, writeTimeout, dsrdtr, interCharTimeout
+            )
+    port1._other = port2
+    port2._other = port1
+    return (port1, port2)
 

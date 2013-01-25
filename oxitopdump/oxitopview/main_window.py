@@ -29,11 +29,12 @@ from __future__ import (
 import os
 import logging
 
+import serial
 from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.connect_dialog import ConnectDialog
 from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
-from oxitopdump.bottles import DataLogger
+from oxitopdump.bottles import DataLogger, DummyLogger, null_modem
 
 
 
@@ -52,6 +53,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
+        self.dummy_logger = None
         self.ui = uic.loadUi(os.path.join(MODULE_DIR, 'main_window.ui'), self)
         # Read configuration
         self.settings = QtCore.QSettings()
@@ -103,6 +105,9 @@ class MainWindow(QtGui.QMainWindow):
             self.settings.setValue('position', self.pos())
         finally:
             self.settings.endGroup()
+        if self.dummy_logger:
+            self.dummy_logger.terminated = True
+            self.dummy_logger = None
         super(MainWindow, self).close()
 
     def connect_logger(self):
@@ -116,10 +121,25 @@ class MainWindow(QtGui.QMainWindow):
                     return
             window = None
             try:
+                if dialog.com_port == 'TEST':
+                    data_logger_port, dummy_logger_port = null_modem(
+                        baudrate=9600, bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                        timeout=5, rtscts=True)
+                    if self.dummy_logger:
+                        # If there's a prior instance of dummy logger (the user
+                        # has previously opened and closed a TEST window), tell
+                        # it to terminate before we replace it
+                        self.dummy_logger.terminated = True
+                    self.dummy_logger = DummyLogger(dummy_logger_port)
+                else:
+                    data_logger_port = serial.Serial(
+                        dialog.com_port, baudrate=9600, bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                        timeout=5, rtscts=True)
                 window = self.ui.mdi_area.addSubWindow(
                     DataLoggerWindow(DataLogger(
-                        dialog.com_port,
-                        progress=(
+                        data_logger_port, progress=(
                             self.progress_start,
                             self.progress_update,
                             self.progress_finish
@@ -193,3 +213,4 @@ Project homepage is at
     def progress_finish(self):
         self.ui.progress_label.setText('')
         QtGui.QApplication.instance().restoreOverrideCursor()
+

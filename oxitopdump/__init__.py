@@ -37,7 +37,7 @@ import locale
 
 import serial
 
-from oxitopdump.bottles import DataLogger
+from oxitopdump.bottles import DataLogger, DummyLogger, null_modem
 
 
 __version__ = '0.1'
@@ -126,14 +126,35 @@ class Application(object):
             logging.getLogger().setLevel(logging.DEBUG)
         else:
             logging.getLogger().setLevel(logging.INFO)
-        if options.debug:
-            import pdb
-            return pdb.runcall(self.main, options, args)
+        if options.port == 'TEST':
+            data_logger_port, dummy_logger_port = null_modem(
+                baudrate=9600, bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                timeout=5, rtscts=True)
+            dummy_logger = DummyLogger(dummy_logger_port)
         else:
-            try:
-                return self.main(options, args) or 0
-            except:
-                return self.handle(*sys.exc_info())
+            data_logger_port = serial.Serial(
+                port, baudrate=9600, bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                timeout=5, rtscts=True)
+            dummy_logger = None
+        try:
+            self.data_logger = DataLogger(data_logger_port, progress=(
+                self.progress_start,
+                self.progress_update,
+                self.progress_finish,
+                ))
+            if options.debug:
+                import pdb
+                return pdb.runcall(self.main, options, args)
+            else:
+                try:
+                    return self.main(options, args) or 0
+                except:
+                    return self.handle(*sys.exc_info())
+        finally:
+            if dummy_logger:
+                dummy_logger.terminated = True
 
     def handle(self, type, value, tb):
         """
@@ -224,9 +245,5 @@ class Application(object):
         sys.stderr.write('\b')
 
     def main(self, options, args):
-        self.data_logger = DataLogger(options.port, progress=(
-            self.progress_start,
-            self.progress_update,
-            self.progress_finish,
-            ))
+        pass
 
