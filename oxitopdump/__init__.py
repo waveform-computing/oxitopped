@@ -126,24 +126,9 @@ class Application(object):
             logging.getLogger().setLevel(logging.DEBUG)
         else:
             logging.getLogger().setLevel(logging.INFO)
-        if options.port == 'TEST':
-            data_logger_port, dummy_logger_port = null_modem(
-                baudrate=9600, bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=5, rtscts=True)
-            dummy_logger = DummyLogger(dummy_logger_port)
-        else:
-            data_logger_port = serial.Serial(
-                port, baudrate=9600, bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=5, rtscts=True)
-            dummy_logger = None
+        self.dummy_logger = None
+        self.data_logger = None
         try:
-            self.data_logger = DataLogger(data_logger_port, progress=(
-                self.progress_start,
-                self.progress_update,
-                self.progress_finish,
-                ))
             if options.debug:
                 import pdb
                 return pdb.runcall(self.main, options, args)
@@ -153,8 +138,13 @@ class Application(object):
                 except:
                     return self.handle(*sys.exc_info())
         finally:
-            if dummy_logger:
-                dummy_logger.terminated = True
+            if self.dummy_logger:
+                self.dummy_logger.terminated = True
+            # The port close call here isn't strictly necessary, but allows us
+            # to terminate a blocking read in the DummyLogger class early which
+            # in turn greatly speeds up testing
+            if self.data_logger:
+                self.data_logger.port.close()
 
     def handle(self, type, value, tb):
         """
@@ -245,5 +235,20 @@ class Application(object):
         sys.stderr.write('\b')
 
     def main(self, options, args):
-        pass
+        if options.port == 'TEST':
+            data_logger_port, dummy_logger_port = null_modem(
+                baudrate=9600, bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                timeout=5, rtscts=True)
+            self.dummy_logger = DummyLogger(dummy_logger_port)
+        else:
+            data_logger_port = serial.Serial(
+                options.port, baudrate=9600, bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                timeout=5, rtscts=True)
+        self.data_logger = DataLogger(data_logger_port, progress=(
+            self.progress_start,
+            self.progress_update,
+            self.progress_finish,
+            ))
 
