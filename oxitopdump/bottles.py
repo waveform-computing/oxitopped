@@ -42,7 +42,7 @@ import logging
 from datetime import datetime, timedelta
 from collections import deque
 from itertools import islice
-from threading import Thread
+from threading import Thread, Condition
 
 import serial
 
@@ -498,7 +498,6 @@ class DataLogger(object):
         # Ensure the port is connected to an OC110 by requesting the
         # manufacturer's ID
         logging.debug('DTE: Testing for known response from MAID command')
-        self.port.flushInput()
         self.id = self._MAID().rstrip('\r')
         if self.id != 'OC110':
             raise UnexpectedReply(
@@ -512,20 +511,22 @@ class DataLogger(object):
 
         `command` : The command to send
         """
-        # If we're not Clear To Send, set Ready To Send and wait for CTS to be
-        # raised in response
         check_response = False
         response = ''
+        # If we're not Clear To Send, set Ready To Send and wait for CTS to be
+        # raised in response
+        if not self.port.isOpen():
+            self.port.open()
         self.port.setRTS()
         if not self.port.getCTS():
-            logging.debug('DTE: CTS not set, setting RTS')
             cts_wait = time.time() + self.port.timeout
             while not self.port.getCTS():
+                logging.debug('DTE: waiting for CTS')
                 time.sleep(0.1)
                 if time.time() > cts_wait:
                     raise HandshakeFailed(
                         'Failed to detect readiness with RTS/CTS handshake')
-                    logging.debug('DTE: CTS set')
+            logging.debug('DTE: CTS set')
             # Read anything the unit sends through; if it's just booted up
             # there's probably some BIOS crap to ignore
             check_response = True
@@ -533,7 +534,7 @@ class DataLogger(object):
         # If we've still not yet seen the ">" prompt, hit enter and see if we
         # get one back
         if not self._seen_prompt:
-            logging.debug('DTE: No prompt seen, prodding unit with Enter')
+            logging.debug('DTE: no prompt seen, prodding unit')
             self.port.write('\r')
             check_response = True
             response += self._rx(checksum=False)
@@ -610,8 +611,7 @@ class DataLogger(object):
         low (indicating we're going to stop talking to it).
         """
         self._tx('CLOC')
-        self._rx()
-        self.port.setRTS(level=False)
+        self._rx(checksum=False)
         self._seen_prompt = False
 
     def _GAPB(self):
@@ -724,7 +724,6 @@ class DummyLogger(Thread):
     def __init__(self, port):
         super(DummyLogger, self).__init__()
         self.terminated = False
-        self.daemon = True
         self.port = port
         assert self.port.timeout > 0
         assert self.port.bytesize == serial.EIGHTBITS
@@ -889,15 +888,17 @@ class DummyLogger(Thread):
         acts upon them when received.
         """
         buf = ''
-        if not self.port.isOpen():
-            self.port.open()
         # On start-up, device sends some BIOS crap, regardless of whether or
         # not anything is listening
-        self.port.setRTS()
+        if not self.port.isOpen():
+            self.port.open()
         self.port.write('\0\r\n')
         self.port.write('BIOS OC Version 1.0\r\n')
+        # BIOS output is deliberately done without setting RTS first
+        self.port.setRTS()
+        self.port.write('LOGON\r')
+        self.port.write('>\r')
         while not self.terminated:
-            print('Running')
             buf += self.port.read().decode('ASCII')
             while '\r' in buf:
                 command, buf = buf.split('\r', 1)
@@ -908,6 +909,7 @@ class DummyLogger(Thread):
                 else:
                     args = []
                 self.handle(command, *args)
+        self.port.close()
 
     def send(self, data, checksum=False):
         """
@@ -916,11 +918,13 @@ class DummyLogger(Thread):
         beginning transmission.
         """
         # Wait up to the port's timeout for CTS
+        if not self.port.isOpen():
+            self.port.open()
+        self.port.setRTS()
         if not self.port.getCTS():
-            self.port.setRTS()
             cts_wait = time.time() + self.port.timeout
             while not self.port.getCTS():
-                time.sleep(0.1)
+                time.sleep(0.5)
                 if time.time() > cts_wait:
                     raise ValueError(
                         'Failed to detect readiness with RTS/CTS handshake')
@@ -939,15 +943,15 @@ class DummyLogger(Thread):
             # MAnufacturer IDentifier; OC110 sends 'OC110'
             self.send('OC110\r')
         elif command == 'CLOC':
-            # CLOse Connection; OC110 sends a return, a prompt, pauses, then
-            # sends a NUL char, and finally the 'LOGON' prompt
+            # CLOse Connection; OC110 sends a return, a prompt, closes the
+            # connection, then re-opens it, and finally sends the 'LOGON'
+            # prompt
             self.send('\r')
             self.send('>\r')
-            self.port.setRTS(False)
             self.port.close()
-            # Emulate the unit taking a half second to reboot
+            # Emulate the unit taking a half second to restart
             time.sleep(0.5)
-            self.port.write('LOGON\r')
+            self.send('LOGON\r')
         elif command == 'GAPB':
             # Get All Pressure Bottles command returns the header details of
             # all bottles and their heads
@@ -1030,9 +1034,11 @@ class NullModem(object):
         self.interCharTimeout = interCharTimeout
         self._other = None
         self._rts = False
-        self._dtr = False
-        self._buf = [] # XXX Should use a deque for this
-        self._opened = bool(self.port)
+        self._lock = Condition()
+        self._buf = deque()
+        self._opened = False
+        if self.port:
+            self.open()
 
     def readable(self):
         return True
@@ -1045,10 +1051,13 @@ class NullModem(object):
 
     def open(self):
         assert not self._opened
+        self.flushInput()
         self._opened = True
 
     def close(self):
         assert self._opened
+        self.setRTS(False)
+        self.flushInput()
         self._opened = False
 
     def isOpen(self):
@@ -1058,7 +1067,8 @@ class NullModem(object):
         pass
 
     def flushInput(self):
-        self._buf = []
+        with self._lock:
+            self._buf = deque()
 
     def flushOutput(self):
         pass
@@ -1082,16 +1092,25 @@ class NullModem(object):
         self._rts = level
 
     def getCTS(self):
-        return self._other._rts
+        result = self._other._rts
+        return result
 
     def setDTR(self, level=True):
-        self._dtr = level
+        if self.dsrdtr is None:
+            # DTR/DSR follows RTS/CTS
+            self.setRTS(level)
 
     def getDSR(self):
-        return self._other.dtr
+        if self.dsrdtr is None:
+            # DTR/DSR follows RTS/CTS
+            return self.getCTS()
+        return False
 
     def getCD(self):
-        raise self._other.dtr
+        if self.dsrdtr is None:
+            # DTR/DSR follows RTS/CTS
+            return self.getCTS()
+        return False
 
     def getRI(self):
         raise NotImplementedError
@@ -1101,31 +1120,34 @@ class NullModem(object):
         raise NotImplementedError
 
     def inWaiting(self):
-        return len(self._buf)
+        with self._lock:
+            return len(self._buf)
 
     def read(self, size=1):
         assert self._opened
         start = time.time()
-        now = start
-        result = ''
-        while len(result) < size:
-            if self._buf:
-                result += self._buf[0]
-                del self._buf[0]
-            else:
-                time.sleep(0.1)
-            now = time.time()
-            if self.timeout is not None and now > start + self.timeout:
-                break
+        result = b''
+        # The inclusion of getCTS() here is a hack to ensure early exit of
+        # read() in the case of the other end closing. This is simply to speed
+        # up testing
+        while self.getCTS() and len(result) < size and (
+                self.timeout is None or time.time() < start + self.timeout):
+            with self._lock:
+                if self._buf:
+                    result += self._buf.popleft()
+                else:
+                    self._lock.wait(0.1)
         assert len(result) <= size
         return result
 
     def write(self, data):
         assert self._opened
         for byte in data:
-            self._other._buf.append(byte)
+            with self._other._lock:
+                self._other._buf.append(byte)
+                self._other._lock.notify()
             # Pause for the amount of time it would take to send data
-            time.sleep(1.0 / self.baudrate)
+            time.sleep(8.0 / self.baudrate)
         return len(data)
 
 
@@ -1138,11 +1160,11 @@ def null_modem(
     ports. All parameters are the same as the pyserial Serial class.
     """
     port1 = NullModem(
-            'TEST', baudrate, bytesize, parity, stopbits, timeout,
+            'DTE', baudrate, bytesize, parity, stopbits, timeout,
             xonxoff, rtscts, writeTimeout, dsrdtr, interCharTimeout
             )
     port2 = NullModem(
-            'TEST', baudrate, bytesize, parity, stopbits, timeout,
+            'DCE', baudrate, bytesize, parity, stopbits, timeout,
             xonxoff, rtscts, writeTimeout, dsrdtr, interCharTimeout
             )
     port1._other = port2
