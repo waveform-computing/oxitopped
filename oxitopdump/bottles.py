@@ -892,7 +892,7 @@ class DummyLogger(Thread):
         # not anything is listening
         if not self.port.isOpen():
             self.port.open()
-        self.port.write('\0\r\n')
+        self.port.write('\r\n')
         self.port.write('BIOS OC Version 1.0\r\n')
         # BIOS output is deliberately done without setting RTS first
         self.port.setRTS()
