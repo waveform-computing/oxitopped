@@ -48,6 +48,7 @@ REQUIRES = [
 EXTRA_REQUIRES = {
     'XLS':        ['xlwt'],
     'GUI':        ['pyqt', 'matplotlib', 'numpy'],
+    'daemon':     ['python-daemon'],
     }
 
 CLASSIFIERS = [
@@ -67,6 +68,7 @@ ENTRY_POINTS = {
     'console_scripts': [
         'oxitoplist = oxitopdump.oxitoplist:main',
         'oxitopdump = oxitopdump.oxitopdump:main',
+        'oxitopemu = oxitopdump.oxitopemu:main',
     ],
     'gui_scripts': [
         'oxitopview = oxitopdump.oxitopview:main',
