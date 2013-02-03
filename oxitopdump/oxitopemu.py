@@ -19,7 +19,7 @@
 
 """An OxiTop OC110 emulator.
 
-This application emulates an OxiTop OC110 data logger for the purposes of
+This application emulates an OxiTop OC110 data dummy_logger for the purposes of
 easy development without access to an actual OC110.
 
 """
@@ -33,8 +33,13 @@ from __future__ import (
 
 import os
 import logging
+import signal
 
 import serial
+try:
+    import daemon
+except ImportError:
+    daemon = None
 
 from oxitopdump import Application
 from oxitopdump.bottles import DummyLogger
@@ -53,19 +58,53 @@ class EmuApplication(Application):
     {bottle.id}.
     """
 
+    def __init__(self):
+        super(EmuApplication, self).__init__()
+        self.parser.set_defaults(
+            daemon=False,
+            )
+        if daemon:
+            self.parser.add_option(
+                '-d', '--daemon', dest='daemon', action='store_true',
+                help='if specified, start the emulator as a background daemon')
+
     def main(self, options, args):
         if options.port == 'TEST':
             # XXX Can we get this working with stdin/stdout?
-            pass
+            self.parser.error('Cannot use TEST serial port with the emulator')
         else:
-            dummy_logger = DummyLogger(serial.Serial(
+            logging.info('Opening serial port %s' % options.port)
+            port = serial.Serial(
                 options.port, baudrate=9600, bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=5, rtscts=True))
+                timeout=5, rtscts=True)
+        self.handle_sigterm = signal.signal(signal.SIGTERM, self.terminate)
+        self.handle_sigint = signal.signal(signal.SIGINT, self.interrupt)
+        logging.info('Starting emulator loop')
+        self.dummy_logger = DummyLogger(port)
+        # Loop around waiting for the dummy logger thread to terminate. If we
+        # attempt to simply join() here then the thread blocks and the signal
+        # handlers below never get a chance to execute
         try:
-            dummy_logger.join()
-        except:
-            dummy_logger.terminated = True
+            while self.dummy_logger.is_alive():
+                self.dummy_logger.join(0.1)
+        except (SystemExit, KeyboardInterrupt) as exc:
+            pass
+        logging.info('Waiting for emulator loop to finish')
+        self.dummy_logger.join()
+        logging.info('Exiting')
+
+    def terminate(self, signum, frame):
+        logging.info('Received SIGTERM')
+        self.dummy_logger.terminated = True
+        if self.handle_sigterm:
+            return self.handle_sigterm(signum, frame)
+
+    def interrupt(self, signum, frame):
+        logging.info('Received SIGINT')
+        self.dummy_logger.terminated = True
+        if self.handle_sigint:
+            return self.handle_sigint(signum, frame)
 
 
 main = EmuApplication()
