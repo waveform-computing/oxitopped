@@ -9,7 +9,7 @@ X-Python-Version: >= 2.6
 
 Package: oxitopdump
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python-serial, python-matplotlib, python-qt4, python-optcomplete
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, python-serial, python-matplotlib, python-qt4, python-optcomplete, python-daemon
 Suggests: python-xlwt
 Description: Tools for interacting with an OxiTop OC110 Data Logger.
  oxitopdump is a small suite of utilies for extracting data from an OxiTop data
