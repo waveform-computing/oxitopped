@@ -34,7 +34,8 @@ from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.connect_dialog import ConnectDialog
 from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
-from oxitopdump.bottles import DataLogger, DummyLogger, null_modem
+from oxitopdump.logger import DataLogger, DummyLogger
+from oxitopdump.nullmodem import null_modem
 
 
 

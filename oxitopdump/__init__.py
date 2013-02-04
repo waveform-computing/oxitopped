@@ -37,7 +37,9 @@ import locale
 
 import serial
 
-from oxitopdump.bottles import DataLogger, DummyLogger, null_modem
+import oxitopdump.patches
+from oxitopdump.logger import DataLogger, DummyLogger
+from oxitopdump.nullmodem import null_modem
 
 
 __version__ = '0.1'
@@ -71,6 +73,10 @@ class Application(object):
 
     def __init__(self):
         super(Application, self).__init__()
+        self.console = None
+        self.logfile = None
+        self.dummy_logger = None
+        self.data_logger = None
         self.progress_visible = False
         self.wrapper = textwrap.TextWrapper()
         self.wrapper.width = 75
@@ -112,22 +118,20 @@ class Application(object):
             args = sys.argv[1:]
         (options, args) = self.parser.parse_args(list(args))
         self.progress_visible = (options.loglevel == logging.INFO)
-        console = logging.StreamHandler(sys.stderr)
-        console.setFormatter(logging.Formatter('%(message)s'))
-        console.setLevel(options.loglevel)
-        logging.getLogger().addHandler(console)
+        self.console = logging.StreamHandler(sys.stderr)
+        self.console.setFormatter(logging.Formatter('%(message)s'))
+        self.console.setLevel(options.loglevel)
+        logging.getLogger().addHandler(self.console)
         if options.logfile:
-            logfile = logging.FileHandler(options.logfile)
-            logfile.setFormatter(logging.Formatter('%(asctime)s, %(levelname)s, %(message)s'))
-            logfile.setLevel(logging.DEBUG)
-            logging.getLogger().addHandler(logfile)
+            self.logfile = logging.FileHandler(options.logfile)
+            self.logfile.setFormatter(logging.Formatter('%(asctime)s, %(levelname)s, %(message)s'))
+            self.logfile.setLevel(logging.DEBUG)
+            logging.getLogger().addHandler(self.logfile)
         if options.debug:
             console.setLevel(logging.DEBUG)
             logging.getLogger().setLevel(logging.DEBUG)
         else:
             logging.getLogger().setLevel(logging.INFO)
-        self.dummy_logger = None
-        self.data_logger = None
         try:
             if options.debug:
                 import pdb
