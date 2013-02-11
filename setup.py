@@ -54,6 +54,8 @@ EXTRA_REQUIRES = {
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
     'Environment :: Console',
+    'Environment :: Win32 (MS Windows)',
+    'Environment :: X11 Applications :: Qt',
     'Intended Audience :: Science/Research',
     'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
     'Operating System :: Microsoft :: Windows',
