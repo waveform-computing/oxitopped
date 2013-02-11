@@ -58,8 +58,6 @@ except ImportError:
             os.chdir(working_directory)
             os.umask(umask)
             self._pidfile = None
-            if signum in self.saved_signals:
-                self.saved_signals(signum, frame)
             self.pidfile = pidfile
             self.saved_signals = {}
             self.signal_map = {}
