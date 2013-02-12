@@ -62,10 +62,9 @@ class EmuApplication(Application):
         self.parser.set_defaults(
             daemon=False,
             )
-        if daemon_avail:
-            self.parser.add_option(
-                '-d', '--daemon', dest='daemon', action='store_true',
-                help='if specified, start the emulator as a background daemon')
+        self.parser.add_option(
+            '-d', '--daemon', dest='daemon', action='store_true',
+            help='if specified, start the emulator as a background daemon')
 
     def main(self, options, args):
         if options.port == 'TEST':

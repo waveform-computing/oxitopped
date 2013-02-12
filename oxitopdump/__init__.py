@@ -128,7 +128,7 @@ class Application(object):
             self.logfile.setLevel(logging.DEBUG)
             logging.getLogger().addHandler(self.logfile)
         if options.debug:
-            console.setLevel(logging.DEBUG)
+            self.console.setLevel(logging.DEBUG)
             logging.getLogger().setLevel(logging.DEBUG)
         else:
             logging.getLogger().setLevel(logging.INFO)
