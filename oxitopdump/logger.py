@@ -224,7 +224,6 @@ class DataLogger(object):
         low (indicating we're going to stop talking to it).
         """
         self._tx('CLOC')
-        self._rx(checksum=False)
         self._seen_prompt = False
 
     def _GAPB(self):
