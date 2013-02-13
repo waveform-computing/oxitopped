@@ -44,13 +44,13 @@ import serial
 from oxitopdump.bottles import Bottle, BottleHead, ENCODING
 
 
-class Error(Exception):
+class LoggerError(Exception):
     """
     Base class for errors related to the data-logger
     """
 
 
-class SendError(Error):
+class SendError(LoggerError):
     """
     Exception raised due to a transmission error
     """
@@ -68,9 +68,15 @@ class PartialSend(SendError):
     """
 
 
-class ReceiveError(Error):
+class ReceiveError(LoggerError):
     """
     Exception raise due to a reception error
+    """
+
+
+class TimeoutError(ReceiveError):
+    """
+    Exception raised when we get no data back before the port times out
     """
 
 
@@ -117,7 +123,7 @@ class DataLogger(object):
         self.id = self._MAID().rstrip('\r')
         if self.id != 'OC110':
             raise UnexpectedReply(
-                'The connected unit is not an OxiTop OC110')
+                'Unexpected manufacturer ID: %s' % self.id)
 
     def _tx(self, command, *args):
         """
@@ -181,7 +187,7 @@ class DataLogger(object):
             while '>\r' not in response:
                 data = self.port.read().decode(ENCODING)
                 if not data:
-                    raise ReceiveError('Failed to read any data before timeout')
+                    raise TimeoutError('Failed to read any data before timeout')
                 elif data == '\n':
                     # Chuck away any LFs; these only appear in the BIOS output on
                     # unit startup and mess up line splits later on
@@ -326,6 +332,14 @@ class DataLogger(object):
         Force the details of all bottles to be re-read on next access.
         """
         self._bottles = None
+
+    def close(self):
+        """
+        Tell the logger to close its connection and reset.
+        """
+        if self.port.isOpen():
+            self._CLOC()
+            self.port.close()
 
 
 class DummyLogger(Thread):

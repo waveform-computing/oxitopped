@@ -38,7 +38,7 @@ import locale
 import serial
 
 import oxitopdump.patches
-from oxitopdump.logger import DataLogger, DummyLogger
+from oxitopdump.logger import DataLogger, DummyLogger, LoggerError
 from oxitopdump.nullmodem import null_modem
 
 
@@ -94,6 +94,7 @@ class Application(object):
             logfile='',
             loglevel=logging.WARNING,
             port='COM1' if sys.platform.startswith('win') else '/dev/ttyUSB0',
+            timeout=3,
             )
         self.parser.add_option(
             '-q', '--quiet', dest='loglevel', action='store_const',
@@ -112,11 +113,21 @@ class Application(object):
             help='specify the port which the OxiTop Data Logger is connected '
             'to. This will be something like /dev/ttyUSB0 on Linux or COM1 '
             'on Windows')
+        self.parser.add_option(
+            '-t', '--timeout', dest='timeout', action='store',
+            help='specify the number of seconds to wait for data from the '
+            'serial port. Default: %default')
 
     def __call__(self, args=None):
         if args is None:
             args = sys.argv[1:]
         (options, args) = self.parser.parse_args(list(args))
+        try:
+            options.timeout = int(options.timeout)
+        except ValueError:
+            self.parser.error('--timeout must be an integer number')
+        if options.timeout < 1:
+            self.parser.error('--timeout must have a positive integer value')
         self.progress_visible = (options.loglevel == logging.INFO)
         self.console = logging.StreamHandler(sys.stderr)
         self.console.setFormatter(logging.Formatter('%(message)s'))
@@ -144,11 +155,8 @@ class Application(object):
         finally:
             if self.dummy_logger:
                 self.dummy_logger.terminated = True
-            # The port close call here isn't strictly necessary, but allows us
-            # to terminate a blocking read in the DummyLogger class early which
-            # in turn greatly speeds up testing
             if self.data_logger:
-                self.data_logger.port.close()
+                self.data_logger.close()
 
     def handle(self, type, value, tb):
         """
@@ -158,7 +166,7 @@ class Application(object):
             # Just ignore system exit and keyboard interrupt errors (after all,
             # they're user generated)
             return 130
-        elif issubclass(type, (IOError, serial.SerialException)):
+        elif issubclass(type, (IOError, serial.SerialException, LoggerError)):
             # For simple errors like IOError and SerialException just output
             # the message which should be sufficient for the end user (no need
             # to confuse them with a full stack trace)
@@ -243,13 +251,13 @@ class Application(object):
             data_logger_port, dummy_logger_port = null_modem(
                 baudrate=9600, bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=5, rtscts=True)
+                timeout=options.timeout, rtscts=True)
             self.dummy_logger = DummyLogger(dummy_logger_port)
         else:
             data_logger_port = serial.Serial(
                 options.port, baudrate=9600, bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=5, rtscts=True)
+                timeout=options.timeout, rtscts=True)
         self.data_logger = DataLogger(data_logger_port, progress=(
             self.progress_start,
             self.progress_update,
