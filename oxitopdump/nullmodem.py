@@ -178,10 +178,7 @@ class NullModem(object):
         assert self._opened
         start = time.time()
         result = b''
-        # The inclusion of getCTS() here is a hack to ensure early exit of
-        # read() in the case of the other end closing. This is simply to speed
-        # up testing
-        while self.getCTS() and len(result) < size and (
+        while len(result) < size and (
                 self.timeout is None or time.time() < start + self.timeout):
             with self._lock:
                 if self._buf:
@@ -195,10 +192,11 @@ class NullModem(object):
         assert self._opened
         for byte in data:
             with self._other._lock:
-                self._other._buf.append(byte)
-                self._other._lock.notify()
+                if self._other._opened:
+                    self._other._buf.append(byte)
+                    self._other._lock.notify()
             # Pause for the amount of time it would take to send data
-            time.sleep(8.0 / self.baudrate)
+            time.sleep(10.0 / self.baudrate)
         return len(data)
 
 

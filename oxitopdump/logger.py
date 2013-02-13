@@ -133,41 +133,32 @@ class DataLogger(object):
 
         `command` : The command to send
         """
-        check_response = False
         response = ''
-        # If we're not Clear To Send, set Ready To Send and wait for CTS to be
-        # raised in response
         if not self.port.isOpen():
             self.port.open()
-        self.port.setRTS()
-        if not self.port.getCTS():
-            cts_wait = time.time() + self.port.timeout
-            while not self.port.getCTS():
-                logging.debug('DTE: waiting for CTS')
-                time.sleep(0.1)
-                if time.time() > cts_wait:
-                    raise HandshakeFailed(
-                        'Failed to detect readiness with RTS/CTS handshake')
-            logging.debug('DTE: CTS set')
-            # Read anything the unit sends through; if it's just booted up
-            # there's probably some BIOS crap to ignore
-            check_response = True
-            response += self._rx(checksum=False)
-        # If we've still not yet seen the ">" prompt, hit enter and see if we
-        # get one back
         if not self._seen_prompt:
-            logging.debug('DTE: no prompt seen, prodding unit')
-            self.port.write('\r')
-            check_response = True
-            response += self._rx(checksum=False)
-        # Because of the aforementioned BIOS crap, ignore everything but the
-        # last line when checking for a response
-        if check_response and not (response.endswith('LOGON\r') or
-                response.endswith('INVALID COMMAND\r')):
-            raise UnexpectedReply(
-                'Expected LOGON or INVALID COMMAND, but got %s' % repr(response))
-        data = ','.join([command] + [str(arg) for arg in args]) + '\r'
-        logging.debug('DTE TX: %s' % data.rstrip('\r'))
+            self.port.flushInput()
+            # If we've not seen the ">" prompt yet, prod the unit repeatedly
+            # until we see it or hit the retries limit
+            for i in range(self.retries):
+                logging.debug('DTE: no prompt seen, prodding unit')
+                self.port.write('\r\n')
+                try:
+                    response += self._rx(checksum=False)
+                except TimeoutError:
+                    continue
+                break
+            if not self._seen_prompt:
+                raise TimeoutError(
+                    'Unit did not respond within %d retries' % self.retries)
+            # Because of BIOS crap, ignore everything but the last line when
+            # checking for a response
+            if not (response.endswith('LOGON\r') or
+                    response.endswith('INVALID COMMAND\r')):
+                raise UnexpectedReply(
+                    'Expected LOGON or INVALID COMMAND, but got %s' % response)
+        data = ','.join([command] + [str(arg) for arg in args]) + '\r\n'
+        logging.debug('DTE TX: %s' % data.rstrip('\r\n'))
         written = self.port.write(data.encode(ENCODING))
         if written != len(data):
             raise PartialSend(
@@ -254,6 +245,9 @@ class DataLogger(object):
         Sends a GPRB (Get PRessure Bottle) command to the OC110 and returns
         the data received.
         """
+        if '-' in bottle:
+            bottle, id = bottle.split('-', 1)
+            bottle = ''.join((bottle, id))
         for retry in range(self.retries):
             try:
                 self._tx('GPRB', bottle)
@@ -355,6 +349,7 @@ class DummyLogger(Thread):
         super(DummyLogger, self).__init__()
         self.terminated = False
         self.port = port
+        self._sent_prompt = False
         assert self.port.timeout > 0
         assert self.port.bytesize == serial.EIGHTBITS
         assert self.port.parity == serial.PARITY_NONE
@@ -376,6 +371,7 @@ class DummyLogger(Thread):
         self.bottles[-1].heads.append(BottleHead(
             self.bottles[-1],
             serial='60108',
+            pressure_limit=150,
             readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
                 965, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 965,
@@ -424,6 +420,7 @@ class DummyLogger(Thread):
         self.bottles[-1].heads.append(BottleHead(
             self.bottles[-1],
             serial='60108',
+            pressure_limit=150,
             readings=[]))
         self.bottles.append(Bottle(
             serial='120323-01',
@@ -440,6 +437,7 @@ class DummyLogger(Thread):
         self.bottles[-1].heads.append(BottleHead(
             self.bottles[-1],
             serial='60145',
+            pressure_limit=150,
             readings=[
                 976, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963, 963,
                 963, 963, 964, 963, 963, 963, 963, 963, 963, 963, 963, 963,
@@ -476,6 +474,7 @@ class DummyLogger(Thread):
         self.bottles[-1].heads.append(BottleHead(
             self.bottles[-1],
             serial='60143',
+            pressure_limit=150,
             readings=[
                 970, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 964,
                 965, 965, 965, 965, 965, 965, 964, 965, 965, 965, 965, 965,
@@ -518,20 +517,16 @@ class DummyLogger(Thread):
         acts upon them when received.
         """
         buf = ''
-        # On start-up, device sends some BIOS crap, regardless of whether or
-        # not anything is listening
         if not self.port.isOpen():
             self.port.open()
+        # On start-up, device sends some BIOS crap, regardless of whether or
+        # not anything is listening
         self.port.write('\r\n')
         self.port.write('BIOS OC Version 1.0\r\n')
-        # BIOS output is deliberately done without setting RTS first
-        self.port.setRTS()
-        self.port.write('LOGON\r')
-        self.port.write('>\r')
         while not self.terminated:
             buf += self.port.read().decode('ASCII')
-            while '\r' in buf:
-                command, buf = buf.split('\r', 1)
+            while '\r\n' in buf:
+                command, buf = buf.split('\r\n', 1)
                 logging.debug('DCE RX: %s' % command)
                 if ',' in command:
                     command = command.split(',')
@@ -547,17 +542,8 @@ class DummyLogger(Thread):
         method ensures the port is open, RTS is set, and CTS is received before
         beginning transmission.
         """
-        # Wait up to the port's timeout for CTS
         if not self.port.isOpen():
             self.port.open()
-        self.port.setRTS()
-        if not self.port.getCTS():
-            cts_wait = time.time() + self.port.timeout
-            while not self.port.getCTS():
-                time.sleep(0.5)
-                if time.time() > cts_wait:
-                    raise ValueError(
-                        'Failed to detect readiness with RTS/CTS handshake')
         for line in data.strip('\r').split('\r'):
             logging.debug('DCE TX: %s' % line)
         self.port.write(data)
@@ -579,9 +565,9 @@ class DummyLogger(Thread):
             self.send('\r')
             self.send('>\r')
             self.port.close()
+            self._sent_prompt = False
             # Emulate the unit taking a half second to restart
             time.sleep(0.5)
-            self.send('LOGON\r')
         elif command == 'GAPB':
             # Get All Pressure Bottles command returns the header details of
             # all bottles and their heads
@@ -600,8 +586,7 @@ class DummyLogger(Thread):
                 else:
                     self.send(str(bottle), checksum=True)
         elif command == 'GSNS':
-            # No idea what GSNS does. Accepts a bottle serial and returns
-            # nothing...
+            # XXX Implement this properly - it returns the "manual" readings
             if len(args) != 1:
                 self.send('INVALID ARGS\r')
             else:
@@ -625,6 +610,9 @@ class DummyLogger(Thread):
                 if not head:
                     self.send('INVALID HEAD\r')
                 self.send(str(head.readings), checksum=True)
+        elif not self._sent_prompt:
+            self.send('LOGON\r')
+            self._sent_prompt = True
         else:
             self.send('INVALID COMMAND\r')
         self.send('>\r')
