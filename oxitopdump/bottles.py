@@ -36,7 +36,6 @@ from __future__ import (
     print_function,
     )
 
-import logging
 from datetime import datetime, timedelta
 from collections import deque
 from itertools import islice
@@ -114,10 +113,12 @@ class Bottle(object):
         # Discard the empty line at the end
         assert not data[-1]
         data = data[:-1]
+        # Ensure there are exactly two lines
+        assert len(data) == 2
         # Parse the first line for bottle information
         (   _,             # ???
             _,             # ???
-            _,             # ???
+            mode,          # mode (0==bod, 3==pressure, 1=???, 2=???)
             id,            # I.D. No.
             serial,        # bottle serial number
             start,         # start timestamp (YYMMDDhhmmss)
@@ -133,9 +134,9 @@ class Bottle(object):
             _,             # ???
             _,             # ???
             _,             # ???
-            _,             # number of heads, perhaps???
+            heads,         # number of heads
             interval,      # interval of readings (perhaps, see 308<=>112 note below)
-        ) = data[0].split(',')
+            ) = data[0].split(',')
         bottle = cls(
             '%s-%s' % (serial[:-2], serial[-2:]),
             int(id),
@@ -144,24 +145,34 @@ class Bottle(object):
             # XXX For some reason, intervals of 112 minutes are reported as 308?!
             timedelta(seconds=60 * int(112 if int(interval) == 308 else interval)),
             int(measurements),
-            'pressure',
+            {
+                '0': 'bod',
+                '3': 'pressure',
+            }[mode],
             float(bottle_volume),
             float(sample_volume),
             0,
-            # Parse all subsequent lines as BottleHead objects
             logger
             )
-        bottle.heads = [
-            BottleHead.from_string(bottle, line)
-            for line in data[1:]
-            ]
+        # Parse second line as BottleHead data
+        serials = data[1].split(',')[1:-1]
+        if bottle.mode == 'bod':
+            for serial in serials:
+                bottle.heads.append(BottleHead(bottle, serial))
+        elif bottle.mode == 'pressure':
+            serials = zip(serials[0::2], serials[1::2])
+            for serial, pressure_limit in serials:
+                bottle.heads.append(BottleHead(bottle, serial, int(pressure_limit)))
         return bottle
 
     def __str__(self):
         return (','.join((
             '0',
             '0',
-            '3',
+            {
+                'bod': '0',
+                'pressure': '3',
+                }[self.mode],
             str(self.id),
             ''.join(self.serial.split('-', 1)),
             self.start.strftime(TIMESTAMP_FORMAT),
@@ -183,11 +194,18 @@ class Bottle(object):
                 1:  2,
                 }[(self.finish - self.start).days]),
             '2',
-            '1',
+            str(len(self.heads)),
             # XXX See above note about 308<=>112
             str(308 if (self.interval.seconds // 60) == 112 else (self.interval.seconds // 60)),
-            )) + '\r' +
-            ''.join(str(head) for head in self.heads)).encode(ENCODING)
+            )) +
+            '\r' +
+            ','.join([''] + [
+                    head.serial
+                    if self.mode == 'bod' else
+                    '%s,%d' % (head.serial, head.pressure_limit)
+                    for head in self.heads
+                    ] + ['']) +
+            '\r').encode(ENCODING)
 
     def __unicode__(self):
         return str(self).decode(ENCODING)
@@ -223,10 +241,11 @@ class BottleHead(object):
 
     `bottle` : the bottle this head belongs to
     `serial` : the serial number of the head
+    `pressure_limit` : the pressure limit for heads run in pressure mode
     `readings` : optional sequence of integers for the head's readings
     """
 
-    def __init__(self, bottle, serial, pressure_limit=150, readings=None):
+    def __init__(self, bottle, serial, pressure_limit=None, readings=None):
         self.bottle = bottle
         self.serial = serial
         self.pressure_limit = pressure_limit
@@ -234,26 +253,6 @@ class BottleHead(object):
             self._readings = readings
         else:
             self._readings = BottleReadings(self, readings)
-
-    @classmethod
-    def from_string(cls, bottle, data):
-        data = data.decode(ENCODING)
-        # Strip trailing CR
-        data = data.rstrip('\r')
-        (   _,              # blank value (due to extraneous leading comma)
-            serial,         # serial number of head
-            pressure_limit, # pressure limit at which auto collection stops
-            _,              # blank value (due to extraneous trailing comma)
-        ) = data.split(',')
-        return cls(bottle, serial, pressure_limit)
-
-    def __str__(self):
-        return (','.join((
-            '',
-            self.serial,
-            str(self.pressure_limit),
-            '',
-            )) + '\r').encode(ENCODING)
 
     def __unicode__(self):
         return str(self).decode(ENCODING)
@@ -263,6 +262,7 @@ class BottleHead(object):
         if self._readings is None and self.bottle.logger is not None:
             data = self.bottle.logger._GMSK(
                 ''.join(self.bottle.serial.split('-', 1)), self.serial)
+            # XXX Use GSNS to obtain manual readings
             # XXX Check the first line includes the correct bottle and head
             # identifiers as specified, and that the reading count matches
             self._readings = BottleReadings.from_string(self, data)
