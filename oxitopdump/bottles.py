@@ -39,12 +39,17 @@ from __future__ import (
 from datetime import datetime, timedelta
 from collections import deque
 from itertools import islice
+from xml.etree.ElementTree import fromstring, tostring, Element, SubElement
 
 import serial
 
 
 ENCODING = 'ascii'
 TIMESTAMP_FORMAT = '%y%m%d%H%M%S'
+
+
+def xml(e, **args):
+    return e.__xml__(**args)
 
 
 class Bottle(object):
@@ -106,6 +111,66 @@ class Bottle(object):
     @property
     def completed(self):
         return 'Yes' if self.finish < datetime.now() else 'No'
+
+    @classmethod
+    def from_xml(cls, data, logger=None):
+        bottle_elem = fromstring(data)
+        assert bottle_elem.tag == 'bottle'
+        bottle = cls(
+            bottle_elem.attrib['serial'],
+            int(bottle_elem.attrib['id']),
+            datetime.strptime(bottle_elem.attrib['start'], '%Y-%m-%dT%H:%M:%S'),
+            datetime.strptime(bottle_elem.attrib['finish'], '%Y-%m-%dT%H:%M:%S'),
+            timedelta(seconds=60 * int(bottle_elem.attrib['interval'])),
+            int(bottle_elem.attrib['expectedmeasurements']),
+            bottle_elem.attrib['mode'],
+            float(bottle_elem.attrib['bottlevolume']),
+            float(bottle_elem.attrib['samplevolume']),
+            int(bottle_elem.attrib['dilution']),
+            logger
+            )
+        for head_elem in bottle_elem.findall('head'):
+            readings_elem = head_elem.find('readings')
+            if readings_elem is not None and readings_elem.text:
+                readings = [
+                    int(reading.strip())
+                    for reading in readings_elem.text.split(',')
+                    if reading.strip()
+                    ]
+            else:
+                readings = None
+            head = BottleHead(
+                bottle,
+                head_elem.attrib['serial'],
+                int(head_elem.attrib['pressurelimit'])
+                    if 'pressurelimit' in head_elem.attrib else None,
+                readings
+                )
+            bottle.heads.append(head)
+        return bottle
+
+    def __xml__(self):
+        bottle_elem = Element('bottle', attrib=dict(
+            serial=self.serial,
+            id=str(self.id),
+            start=self.start.isoformat(),
+            finish=self.finish.isoformat(),
+            interval=str(self.interval.seconds // 60),
+            expectedmeasurements=str(self.expected_measurements),
+            mode=self.mode,
+            bottlevolume=str(self.bottle_volume),
+            samplevolume=str(self.sample_volume),
+            dilution=str(self.dilution),
+            ))
+        for head in self.heads:
+            head_elem = SubElement(bottle_elem, 'head', attrib=dict(
+                serial=head.serial,
+                ))
+            if head.pressure_limit is not None:
+                head_elem.attrib['pressurelimit'] = str(head.pressure_limit)
+            readings_elem = SubElement(head_elem, 'readings')
+            readings_elem.text = ','.join(str(r) for r in head.readings)
+        return tostring(bottle_elem)
 
     @classmethod
     def from_string(cls, data, logger=None):
@@ -249,8 +314,11 @@ class BottleHead(object):
         self.bottle = bottle
         self.serial = serial
         self.pressure_limit = pressure_limit
-        if readings is None or isinstance(readings, BottleReadings):
+        if readings is None:
             self._readings = readings
+        elif isinstance(readings, BottleReadings):
+            self._readings = readings
+            self._readings.head = self
         else:
             self._readings = BottleReadings(self, readings)
 

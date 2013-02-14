@@ -31,13 +31,16 @@ from __future__ import (
     print_function,
     )
 
+import io
 import sys
 import logging
 import signal
+from xml.etree.ElementTree import fromstring, tostring
 
 import serial
 
 from oxitopdump import Application
+from oxitopdump.bottles import Bottle
 from oxitopdump.logger import DummyLogger
 from oxitopdump.daemon import DaemonContext
 
@@ -69,6 +72,14 @@ class EmuApplication(Application):
     def main(self, options, args):
         if options.port == 'TEST':
             self.parser.error('Cannot use TEST serial port with the emulator')
+        if len(args) != 1:
+            self.parser.error('You must specify a bottles definition file')
+        with io.open(args[0], 'r') as bottles_file:
+            bottles_xml = fromstring(bottles_file.read())
+        bottles = [
+            Bottle.from_xml(tostring(bottle))
+            for bottle in bottles_xml.findall('bottle')
+            ]
         logging.info('Opening serial port %s' % options.port)
         port = serial.Serial(
             options.port, baudrate=9600, bytesize=serial.EIGHTBITS,
@@ -91,7 +102,7 @@ class EmuApplication(Application):
                     signal.SIGINT: self.interrupt,
                     }):
             logging.info('Starting emulator loop')
-            self.dummy_logger = DummyLogger(port)
+            self.dummy_logger = DummyLogger(port, bottles)
             # Loop around waiting for the dummy logger thread to terminate. If
             # we attempt to simply join() here then the thread blocks and the
             # signal handlers below never get a chance to execute
