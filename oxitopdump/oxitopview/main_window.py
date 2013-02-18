@@ -26,14 +26,17 @@ from __future__ import (
     division,
     )
 
+import io
 import os
 import logging
+from xml.etree.ElementTree import fromstring, tostring
 
 import serial
 from PyQt4 import QtCore, QtGui, uic
 
 from oxitopdump.oxitopview.connect_dialog import ConnectDialog
 from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
+from oxitopdump.bottles import Bottle
 from oxitopdump.logger import DataLogger, DummyLogger
 from oxitopdump.nullmodem import null_modem
 
@@ -132,7 +135,14 @@ class MainWindow(QtGui.QMainWindow):
                         # has previously opened and closed a TEST window), tell
                         # it to terminate before we replace it
                         self.dummy_logger.terminated = True
-                    self.dummy_logger = DummyLogger(dummy_logger_port)
+                    with io.open(
+                            os.path.join(os.path.dirname(__file__),
+                                '..', 'example.xml'), 'r') as bottles_file:
+                        bottles_xml = fromstring(bottles_file.read())
+                    self.dummy_logger = DummyLogger(dummy_logger_port, [
+                        Bottle.from_xml(tostring(bottle))
+                        for bottle in bottles_xml.findall('bottle')
+                        ])
                 else:
                     data_logger_port = serial.Serial(
                         dialog.com_port, baudrate=9600, bytesize=serial.EIGHTBITS,

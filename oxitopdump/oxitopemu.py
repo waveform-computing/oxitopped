@@ -72,10 +72,15 @@ class EmuApplication(Application):
     def main(self, options, args):
         if options.port == 'TEST':
             self.parser.error('Cannot use TEST serial port with the emulator')
-        if len(args) != 1:
-            self.parser.error('You must specify a bottles definition file')
-        with io.open(args[0], 'r') as bottles_file:
-            bottles_xml = fromstring(bottles_file.read())
+        if not args:
+            # Use a default bottles definition file if none was specified
+            args = [os.path.join(os.path.dirname(__file__), 'example.xml')]
+        if len(args) == 1:
+            with io.open(args[0], 'r') as bottles_file:
+                bottles_xml = fromstring(bottles_file.read())
+        else:
+            self.parser.error(
+                'You may only specify a single bottles definition file')
         bottles = [
             Bottle.from_xml(tostring(bottle))
             for bottle in bottles_xml.findall('bottle')

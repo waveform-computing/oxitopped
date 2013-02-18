@@ -23,8 +23,8 @@ Defines the interfaces for gathering data from an OC110, and an OC110 emulator.
 This module defines a `DataLogger` class which provides an interface to the
 OC110 serial port. For testing purposes a "fake OC110" can be found in the
 `DummyLogger` class. This can be connected to an application with real serial
-ports or with instances of the NullModem class in the associated nullmodem
-module.
+ports or with instances of the `NullModem` class in the associated
+`oxitopdump.nullmodem` module.
 """
 
 from __future__ import (
@@ -195,8 +195,9 @@ class DataLogger(object):
         # Split the response on the CRs and strip off the prompt at the end
         response = response.split('\r')[:-2]
         # If we're expecting a check-sum, check the last line for one and
-        # ensure it matches the transmitted data
-        if checksum:
+        # ensure it matches the transmitted data (if no data was transmitted
+        # then the checksum is omitted)
+        if checksum and response:
             response, checksum_received = response[:-1], response[-1]
             if not checksum_received.startswith(','):
                 raise UnexpectedReply('Checksum is missing leading comma')
@@ -244,9 +245,6 @@ class DataLogger(object):
         Sends a GPRB (Get PRessure Bottle) command to the OC110 and returns
         the data received.
         """
-        if '-' in bottle:
-            bottle, id = bottle.split('-', 1)
-            bottle = ''.join((bottle, id))
         for retry in range(self.retries):
             try:
                 self._tx('GPRB', bottle)
@@ -257,11 +255,18 @@ class DataLogger(object):
 
     def _GSNS(self, bottle):
         """
-        Sends a GSNS (???) command to the OC110. No idea what this command
-        does but the original software always used it between GPRB and GMSK.
+        Sends a GSNS (Get ... erm ... momentary readings) command to the OC110.
+        This command retrieves the manual ("momentary") values recorded for the
+        bottle head when operating in pressure mode (this command isn't issued
+        against bottles run in any of the BOD modes).
         """
-        self._tx('GSNS', bottle)
-        self._rx(checksum=False)
+        for retry in range(self.retries):
+            try:
+                self._tx('GSNS', bottle)
+                return self._rx()
+            except ChecksumMismatch as exc:
+                e = exc
+        raise e
 
     def _GMSK(self, bottle, head):
         """
@@ -392,12 +397,13 @@ class DummyLogger(Thread):
         """
         if not self.port.isOpen():
             self.port.open()
-        for line in data.strip('\r').split('\r'):
-            logging.debug('DCE TX: %s' % line)
-        self.port.write(data)
-        if checksum:
-            value = sum(ord(c) for c in data)
-            self.send(',%d\r' % value, checksum=False)
+        if data:
+            for line in data.strip('\r').split('\r'):
+                logging.debug('DCE TX: %s' % line)
+            self.port.write(data)
+            if checksum:
+                value = sum(ord(c) for c in data)
+                self.send(',%d\r' % value, checksum=False)
 
     def handle(self, command, *args):
         """
@@ -425,39 +431,41 @@ class DummyLogger(Thread):
             # Get PRessure Bottle command returns the details of the specified
             # bottle and its heads
             if len(args) != 1:
-                self.send('INVALID ARGS\r')
+                self.send('INVALID COMMAND\r')
             else:
                 try:
                     bottle = self.bottle_by_serial(args[0])
                 except ValueError:
-                    self.send('INVALID BOTTLE\r')
+                    self.send(',\r')
                 else:
                     self.send(str(bottle), checksum=True)
         elif command == 'GSNS':
-            # XXX Implement this properly - it returns the "manual" readings
+            # GSNS returns all manual-readings from the specified bottle
             if len(args) != 1:
-                self.send('INVALID ARGS\r')
+                self.send('INVALID COMMAND\r')
             else:
                 try:
                     bottle = self.bottle_by_serial(args[0])
                 except ValueError:
-                    self.send('INVALID BOTTLE\r')
+                    self.send(',\r')
+                else:
+                    self.send(str(bottle.head[0].manual_readings), checksum=True)
         elif command.startswith('GMSK'):
-            # GMSK returns all readings from a specified bottle head
+            # GMSK returns all auto-readings from a specified bottle head
             if len(args) != 2:
-                self.send('INVALID ARGS\r')
+                self.send('INVALID COMMAND\r')
             else:
                 try:
                     bottle = self.bottle_by_serial(args[0])
                 except ValueError:
-                    self.send('INVALID BOTTLE\r')
+                    self.send(',\r')
                 for head in bottle.heads:
                     if head.serial == args[1]:
                         break
                     head = None
                 if not head:
-                    self.send('INVALID HEAD\r')
-                self.send(str(head.readings), checksum=True)
+                    self.send(',\r')
+                self.send(str(head.auto_readings), checksum=True)
         elif not self._sent_prompt:
             self.send('LOGON\r')
             self._sent_prompt = True
@@ -466,8 +474,6 @@ class DummyLogger(Thread):
         self.send('>\r')
 
     def bottle_by_serial(self, serial):
-        if '-' not in serial:
-            serial = '%s-%s' % (serial[:-2], serial[-2:])
         for bottle in self.bottles:
             if bottle.serial == serial:
                 return bottle

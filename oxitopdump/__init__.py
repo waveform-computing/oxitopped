@@ -28,16 +28,19 @@ from __future__ import (
     )
 
 import sys
+import io
 import os
 import optparse
 import textwrap
 import logging
 import traceback
 import locale
+from xml.etree.ElementTree import fromstring, tostring
 
 import serial
 
 import oxitopdump.patches
+from oxitopdump.bottles import Bottle
 from oxitopdump.logger import DataLogger, DummyLogger, LoggerError
 from oxitopdump.nullmodem import null_modem
 
@@ -252,7 +255,14 @@ class Application(object):
                 baudrate=9600, bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
                 timeout=options.timeout, rtscts=True)
-            self.dummy_logger = DummyLogger(dummy_logger_port)
+            with io.open(
+                    os.path.join(os.path.dirname(__file__),
+                        'example.xml'), 'r') as bottles_file:
+                bottles_xml = fromstring(bottles_file.read())
+            self.dummy_logger = DummyLogger(dummy_logger_port, [
+                Bottle.from_xml(tostring(bottle))
+                for bottle in bottles_xml.findall('bottle')
+                ])
         else:
             data_logger_port = serial.Serial(
                 options.port, baudrate=9600, bytesize=serial.EIGHTBITS,

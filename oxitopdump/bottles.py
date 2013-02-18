@@ -23,10 +23,7 @@ Defines the structures and interfaces for gathering data from an OC110
 This module defines a couple of data structures which represent gas bottle
 (`Bottle`) and the measuring head(s) of a gas bottle (`BottleHead`). These can
 be constructed manually but more usually will be obtained from an instance of
-`DataLogger` which provides an interface to the OC110 serial port. For testing
-purposes a "fake OC110" can be found in the `DummySerial` class which takes the
-same initialization parameters as the Python `Serial` class and hence can be
-used in place of it.
+`DataLogger` (see the `oxitopdump.logger` module).
 """
 
 from __future__ import (
@@ -60,20 +57,20 @@ class Bottle(object):
     `id` : additional user-assigned ID number (1-999), non-unique
     `start` : the timestamp at the start of the run
     `finish` : the timestamp at the end of the run
-    `interval` : the interval between readings (expressed as a timedelta)
     `measurements` : the expected number of measurements
     `mode` : one of 'pressure' or 'bod'
     `bottle_volume` : the nominal volume (in ml) of the bottle
     `sample_volume` : the volume of the sample (in ml) within the bottle
+    `dilution` : the dilution of the sample (1+value)
     `logger` : a DataLogger instance that can be used to update the bottle
     """
 
     def __init__(
-            self, serial, id, start, finish, interval, expected_measurements,
-            mode, bottle_volume, sample_volume, dilution, logger=None):
+            self, serial, id, start, finish, measurements, mode, bottle_volume,
+            sample_volume, dilution, logger=None):
         self.logger = logger
         try:
-            date, num = serial.split('-', 1)
+            date, num = serial[:-2], serial[-2:]
             datetime.strptime(date, '%y%m%d')
             assert 1 <= int(num) <= 99
         except (ValueError, AssertionError) as exc:
@@ -86,8 +83,8 @@ class Bottle(object):
         self.id = id
         self.start = start
         self.finish = finish
-        self.interval = interval
-        self.expected_measurements = expected_measurements
+        self.expected_measurements = measurements
+        self.interval = (finish - start) // measurements
         self.mode = mode
         self.bottle_volume = float(bottle_volume)
         self.sample_volume = float(sample_volume)
@@ -96,17 +93,21 @@ class Bottle(object):
 
     @property
     def actual_measurements(self):
-        return max(len(head.readings) for head in self.heads)
+        return max(len(head.auto_readings) for head in self.heads)
 
     @property
     def mode_string(self):
-        return (
-            'Pressure %dd' % (self.finish - self.start).days
-                if self.mode == 'pressure' else
-            'BOD'
-                if self.mode == 'bod' else
+        prefix = (
+            'Pressure' if self.mode == 'pressure' else
+            'BOD' if self.mode == 'bod' else
             'Unknown'
             )
+        duration = self.finish - self.start
+        if duration.days > 0:
+            suffix = '%dd' % duration.days
+        else:
+            suffix = '%dh' % (duration.seconds // 3600)
+        return '%s %s' % (prefix, suffix)
 
     @property
     def completed(self):
@@ -121,8 +122,7 @@ class Bottle(object):
             int(bottle_elem.attrib['id']),
             datetime.strptime(bottle_elem.attrib['start'], '%Y-%m-%dT%H:%M:%S'),
             datetime.strptime(bottle_elem.attrib['finish'], '%Y-%m-%dT%H:%M:%S'),
-            timedelta(seconds=60 * int(bottle_elem.attrib['interval'])),
-            int(bottle_elem.attrib['expectedmeasurements']),
+            int(bottle_elem.attrib['measurements']),
             bottle_elem.attrib['mode'],
             float(bottle_elem.attrib['bottlevolume']),
             float(bottle_elem.attrib['samplevolume']),
@@ -130,21 +130,32 @@ class Bottle(object):
             logger
             )
         for head_elem in bottle_elem.findall('head'):
-            readings_elem = head_elem.find('readings')
-            if readings_elem is not None and readings_elem.text:
-                readings = [
-                    int(reading.strip())
-                    for reading in readings_elem.text.split(',')
-                    if reading.strip()
+            auto_readings_elem = head_elem.find('autoreadings')
+            if auto_readings_elem is not None:
+                auto_readings = [
+                    int(reading.attrib['value'])
+                    for reading in auto_readings_elem.findall('reading')
                     ]
             else:
-                readings = None
+                auto_readings = []
+            manual_readings_elem = head_elem.find('manualreadings')
+            if manual_readings_elem is not None:
+                manual_readings = [
+                    (
+                        bottle.start + timedelta(seconds=int(reading.attrib['timestamp'])),
+                        int(reading.attrib['value'])
+                        )
+                    for reading in manual_readings_elem.findall('reading')
+                    ]
+            else:
+                manual_readings = []
             head = BottleHead(
                 bottle,
                 head_elem.attrib['serial'],
                 int(head_elem.attrib['pressurelimit'])
                     if 'pressurelimit' in head_elem.attrib else None,
-                readings
+                auto_readings,
+                manual_readings
                 )
             bottle.heads.append(head)
         return bottle
@@ -155,8 +166,7 @@ class Bottle(object):
             id=str(self.id),
             start=self.start.isoformat(),
             finish=self.finish.isoformat(),
-            interval=str(self.interval.seconds // 60),
-            expectedmeasurements=str(self.expected_measurements),
+            measurements=str(self.expected_measurements),
             mode=self.mode,
             bottlevolume=str(self.bottle_volume),
             samplevolume=str(self.sample_volume),
@@ -168,16 +178,23 @@ class Bottle(object):
                 ))
             if head.pressure_limit is not None:
                 head_elem.attrib['pressurelimit'] = str(head.pressure_limit)
-            readings_elem = SubElement(head_elem, 'readings')
-            readings_elem.text = ','.join(str(r) for r in head.readings)
+            auto_readings_elem = SubElement(head_elem, 'autoreadings')
+            for reading in head.auto_readings:
+                e = SubElement(auto_readings_elem, 'reading')
+                e.attrib['value'] = str(reading)
+            manual_readings_elem = SubElement(head_elem, 'manualreadings')
+            for timestamp, reading in head.manual_readings:
+                e = SubElement(manual_readings_elem, 'reading')
+                e.attrib['timestamp'] = str((timestamp - self.start).seconds)
+                e.attrib['value'] = str(reading)
         return tostring(bottle_elem)
 
     @classmethod
     def from_string(cls, data, logger=None):
         data = data.decode(ENCODING).split('\r')
-        # Discard the empty line at the end
-        assert not data[-1]
-        data = data[:-1]
+        # Discard the empty line(s) at the end
+        while data and not data[-1]:
+            data = data[:-1]
         # Ensure there are exactly two lines
         assert len(data) == 2
         # Parse the first line for bottle information
@@ -188,27 +205,25 @@ class Bottle(object):
             serial,        # bottle serial number
             start,         # start timestamp (YYMMDDhhmmss)
             finish,        # finish timestamp (YYMMDDhhmmss)
-            _,             # ???
+            _,             # ??? see notes in __str__
             _,             # ???
             _,             # ???
             _,             # ???
             measurements,  # number of measurements
-            pressure,      # pressure type?
+            duration,      # duration (minutes)
             bottle_volume, # bottle volume (ml)
             sample_volume, # sample volume (ml)
-            _,             # ???
+            _,             # ??? see notes in __str__
             _,             # ???
             _,             # ???
             heads,         # number of heads
-            interval,      # interval of readings (perhaps, see 308<=>112 note below)
+            interval,      # ??? see notes in __str__
             ) = data[0].split(',')
         bottle = cls(
-            '%s-%s' % (serial[:-2], serial[-2:]),
+            serial,
             int(id),
             datetime.strptime(start, TIMESTAMP_FORMAT),
             datetime.strptime(finish, TIMESTAMP_FORMAT),
-            # XXX For some reason, intervals of 112 minutes are reported as 308?!
-            timedelta(seconds=60 * int(112 if int(interval) == 308 else interval)),
             int(measurements),
             {
                 '0': 'bod',
@@ -235,14 +250,18 @@ class Bottle(object):
             '0',
             '0',
             {
+                # XXX Need to test BOD special vs routine vs standard
                 'bod': '0',
                 'pressure': '3',
                 }[self.mode],
             str(self.id),
-            ''.join(self.serial.split('-', 1)),
+            self.serial,
             self.start.strftime(TIMESTAMP_FORMAT),
             self.finish.strftime(TIMESTAMP_FORMAT),
-            '2',
+            # XXX Seems to be 1 for unfinished samples, 2 for finished samples.
+            # Perhaps 0 is samples yet to start? Also not sure if it matters
+            # whether samples have been downloaded to the unit yet or not
+            str(2 if self.finish < datetime.now() else 1),
             '5',
             '240',
             '40',
@@ -250,24 +269,39 @@ class Bottle(object):
             str((self.finish - self.start).days * 24 * 60),
             '%.0f' % self.bottle_volume,
             '%.1f' % self.sample_volume,
+            # XXX This might be dilution. Always seems to be zero so far and
+            # we haven't tested varying the dilution setting. However, could be
+            # the auto-temp setting as well...
             '0',
-            str({
-                28: 10,
-                14: 10,
-                3:  6,
-                2:  4,
-                1:  2,
-                }[(self.finish - self.start).days]),
+            # XXX This is probably the duration of the auto-temp adaptation
+            # phase. Disabled for runs less than 1 day, limited to 70 minutes
+            # for runs longer than 5 days. Specified in 7s of minutes (?!)
+            str(
+                0 if (self.finish - self.start).days == 0 else
+                10 if (self.finish - self.start).days >= 5 else
+                2 * (self.finish - self.start).days
+                ),
             '2',
             str(len(self.heads)),
-            # XXX See above note about 308<=>112
-            str(308 if (self.interval.seconds // 60) == 112 else (self.interval.seconds // 60)),
+            # XXX No idea how this last field is constructed. In pressure mode
+            # it *seems* to be the interval between readings in minutes, but
+            # 112 minute intervals are reported as 308 (?!). Meanwhile in BOD
+            # standard mode it seems to be 32768 + runtime in hours. Might be a
+            # bit-field but that doesn't seem to fit the 308<=>112 thing and it
+            # only partially fits the BOD standard mode def.
+            str(
+                (308 if (self.interval.seconds // 60) == 112 else (self.interval.seconds // 60))
+                if self.mode == 'pressure' else
+                32768 +
+                ((self.finish - self.start).days * 24) + 
+                ((self.finish - self.start).seconds // 3600)
+                ),
             )) +
             '\r' +
             ','.join([''] + [
-                    head.serial
-                    if self.mode == 'bod' else
                     '%s,%d' % (head.serial, head.pressure_limit)
+                    if self.mode == 'pressure' else
+                    head.serial
                     for head in self.heads
                     ] + ['']) +
             '\r').encode(ENCODING)
@@ -307,46 +341,132 @@ class BottleHead(object):
     `bottle` : the bottle this head belongs to
     `serial` : the serial number of the head
     `pressure_limit` : the pressure limit for heads run in pressure mode
-    `readings` : optional sequence of integers for the head's readings
+    `auto_readings` : optional sequence of integers for the head's auto-readings
+    `manual_readings` : optional sequence of (timestamp, reading) tuples
     """
 
-    def __init__(self, bottle, serial, pressure_limit=None, readings=None):
+    def __init__(
+            self, bottle, serial, pressure_limit=None, auto_readings=None,
+            manual_readings=None):
         self.bottle = bottle
         self.serial = serial
         self.pressure_limit = pressure_limit
-        if readings is None:
-            self._readings = readings
-        elif isinstance(readings, BottleReadings):
-            self._readings = readings
-            self._readings.head = self
+        if auto_readings:
+            self.auto_readings = auto_readings
         else:
-            self._readings = BottleReadings(self, readings)
+            self.auto_readings = []
+        if manual_readings:
+            self.manual_readings = manual_readings
+        else:
+            self.manual_readings = []
 
     def __unicode__(self):
         return str(self).decode(ENCODING)
 
-    @property
-    def readings(self):
-        if self._readings is None and self.bottle.logger is not None:
-            data = self.bottle.logger._GMSK(
-                ''.join(self.bottle.serial.split('-', 1)), self.serial)
-            # XXX Use GSNS to obtain manual readings
+    def _get_auto_readings(self):
+        if self._auto_readings is None and self.bottle.logger is not None:
+            data = self.bottle.logger._GMSK(self.bottle.serial, self.serial)
             # XXX Check the first line includes the correct bottle and head
-            # identifiers as specified, and that the reading count matches
-            self._readings = BottleReadings.from_string(self, data)
-        return self._readings
+            # identifiers as specified
+            self._auto_readings = BottleAutoReadings.from_string(self, data)
+        return self._auto_readings
+
+    def _set_auto_readings(self, value):
+        if isinstance(value, BottleAutoReadings):
+            self._auto_readings = value
+            self._auto_readings.head = self
+        else:
+            self._auto_readings = BottleAutoReadings(self, value)
+
+    auto_readings = property(_get_auto_readings, _set_auto_readings)
+
+    def _get_manual_readings(self):
+        if self._manual_readings is None and self.bottle.logger is not None:
+            if self.bottle.mode == 'pressure':
+                # Manual (momentary) readings can only be taken in pressure
+                # mode. As this mode can only operate with a single head, we
+                # don't specify the head here
+                data = self.bottle.logger._GSNS(self.bottle.serial)
+            else:
+                data = []
+            self._manual_readings = BottleManualReadings.from_string(self, data)
+        return self._manual_readings
+
+    def _set_manual_readings(self, value):
+        if isinstance(value, BottleManualReadings):
+            self._manual_readings = value
+            self._manual_readings.head = self
+        else:
+            self._manual_readings = BottleManualReadings(self, value)
+
+    manual_readings = property(_get_manual_readings, _set_manual_readings)
 
     def refresh(self):
         if self.bottle is not None and self.bottle.logger is not None:
-            self._readings = None
+            self._auto_readings = None
+            self._manual_readings = None
         else:
             raise RuntimeError(
                 'Cannot refresh a bottle head with no associated data logger')
 
 
-class BottleReadings(object):
+class BottleManualReadings(object):
     """
-    Represents the readings of a bottle head as a sequence-like object.
+    Represents the momentary values of a bottle head as a sequence of
+    (timestamp, value) tuples.
+
+    `head` : the bottle head that the readings apply to
+    `readings` : a sequence of (timestamp, value) tuples for the head
+    """
+
+    def __init__(self, head, readings):
+        self.head = head
+        self._items = list(readings)
+
+    @classmethod
+    def from_string(cls, head, data):
+        data = data.decode(ENCODING).split('\r')
+        # Discard the empty line(s) at the end
+        while data and not data[-1]:
+            data = data[:-1]
+        if data:
+            readings_len, _ = data[0].split(',', 1)
+            readings_len = int(readings_len)
+            assert len(data) == readings_len + 1
+            data = [line.split(',') for line in data[1:]]
+        else:
+            data = []
+        readings = cls(head, (
+            (head.bottle.start + timedelta(seconds=int(timestamp)), int(value))
+            for (timestamp, value, _) in data
+            ))
+        return readings
+
+    def __str__(self):
+        if self:
+            return (
+                '%d,\r' % len(self) +
+                ''.join(
+                    '%d,%d,\r' % ((timestamp - self.head.bottle.start).seconds, value)
+                    for (timestamp, value) in self
+                    )
+                ).encode(ENCODING)
+        else:
+            return ''
+
+    def __unicode__(self):
+        return str(self).decode(ENCODING)
+
+    def __len__(self):
+        return len(self._items)
+
+    def __getitem__(self, index):
+        return self._items[index]
+
+
+class BottleAutoReadings(object):
+    """
+    Represents the auto-readings of a bottle head as a sequence-like object.
 
     `head` : the bottle head that the readings apply to
     `readings` : the readings for the head
@@ -359,9 +479,9 @@ class BottleReadings(object):
     @classmethod
     def from_string(cls, head, data):
         data = data.decode(ENCODING).split('\r')
-        # Discard the empty line at the end
-        assert not data[-1]
-        data = data[:-1]
+        # Discard the empty line(s) at the end
+        while data and not data[-1]:
+            data = data[:-1]
         (   head_serial,   # serial number of head
             bottle_serial, # serial number of the owning bottle
             _,             # ??? (always 1)
@@ -379,14 +499,14 @@ class BottleReadings(object):
             if value
             ))
         assert head_serial == head.serial
-        assert '%s-%s' % (bottle_serial[:-2], bottle_serial[-2:]) == head.bottle.serial
+        assert bottle_serial == head.bottle.serial
         assert len(readings) == readings_len
         return readings
 
     def __str__(self):
         return (','.join((
             '%09d' % int(self.head.serial),
-            ''.join(self.head.bottle.serial.split('-', 1)),
+            self.head.bottle.serial,
             '1',
             '1',
             '247', # can be zero, but we've no idea what this means...
@@ -437,6 +557,7 @@ class DataAnalyzer(object):
         self.bottle = bottle
         self._delta = delta
         self._points = points
+        self._manual = False
         self._timestamps = None
         self._heads = None
 
@@ -466,10 +587,21 @@ class DataAnalyzer(object):
 
     points = property(_get_points, _set_points)
 
+    def _get_manual(self):
+        return self._manual
+
+    def _set_manual(self, value):
+        if value != self._manual:
+            self._manual = bool(value)
+            self._heads = None
+            self._timestamps = None
+
+    manual = property(_get_manual, _set_manual)
+
     @property
     def timestamps(self):
         if self._timestamps is None:
-            max_readings = max(len(head.readings) for head in self.bottle.heads)
+            max_readings = max(len(head.auto_readings) for head in self.bottle.heads)
             self._timestamps = [
                 self.bottle.start + (
                     self.bottle.interval * (
@@ -484,8 +616,8 @@ class DataAnalyzer(object):
             self._heads = [
                 list(
                     moving_average((
-                        reading - (head.readings[0] if self.delta else 0)
-                        for reading in head.readings
+                        reading - (head.auto_readings[0] if self.delta else 0)
+                        for reading in head.auto_readings
                         ), self.points)
                     )
                 for head in self.bottle.heads
