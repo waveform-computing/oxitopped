@@ -351,20 +351,21 @@ class BottleHead(object):
         self.bottle = bottle
         self.serial = serial
         self.pressure_limit = pressure_limit
+        self._auto_readings = None
+        self._manual_readings = None
         if auto_readings:
             self.auto_readings = auto_readings
-        else:
-            self.auto_readings = []
         if manual_readings:
             self.manual_readings = manual_readings
-        else:
-            self.manual_readings = []
 
     def __unicode__(self):
         return str(self).decode(ENCODING)
 
     def _get_auto_readings(self):
-        if self._auto_readings is None and self.bottle.logger is not None:
+        if self._auto_readings is None:
+            if self.bottle.logger is None:
+                raise RuntimeError(
+                    'Cannot refresh a bottle head with no associated data logger')
             data = self.bottle.logger._GMSK(self.bottle.serial, self.serial)
             # XXX Check the first line includes the correct bottle and head
             # identifiers as specified
@@ -381,7 +382,10 @@ class BottleHead(object):
     auto_readings = property(_get_auto_readings, _set_auto_readings)
 
     def _get_manual_readings(self):
-        if self._manual_readings is None and self.bottle.logger is not None:
+        if self._manual_readings is None:
+            if self.bottle.logger is None:
+                raise RuntimeError(
+                    'Cannot refresh a bottle head with no associated data logger')
             if self.bottle.mode == 'pressure':
                 # Manual (momentary) readings can only be taken in pressure
                 # mode. As this mode can only operate with a single head, we
