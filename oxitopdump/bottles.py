@@ -561,7 +561,6 @@ class DataAnalyzer(object):
         self.bottle = bottle
         self._delta = delta
         self._points = points
-        self._manual = False
         self._timestamps = None
         self._heads = None
 
@@ -590,17 +589,6 @@ class DataAnalyzer(object):
             self._timestamps = None
 
     points = property(_get_points, _set_points)
-
-    def _get_manual(self):
-        return self._manual
-
-    def _set_manual(self, value):
-        if value != self._manual:
-            self._manual = bool(value)
-            self._heads = None
-            self._timestamps = None
-
-    manual = property(_get_manual, _set_manual)
 
     @property
     def timestamps(self):
