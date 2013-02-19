@@ -27,6 +27,7 @@ from __future__ import (
     )
 
 import sys
+import logging
 
 import sip
 for api in ('QDate', 'QDateTime', 'QTime', 'QString', 'QTextStream', 'QUrl', 'QVariant'):
@@ -52,6 +53,12 @@ def main(args=None):
     global APPLICATION, MAIN_WINDOW
     if args is None:
         args = sys.argv
+    if ('-D' in args) or ('--debug' in args):
+        console = logging.StreamHandler(sys.stderr)
+        console.setFormatter(logging.Formatter('%(message)s'))
+        console.setLevel(logging.DEBUG)
+        logging.getLogger().addHandler(console)
+        logging.getLogger().setLevel(logging.DEBUG)
     APPLICATION = QtGui.QApplication(args)
     APPLICATION.setApplicationName('oxitopview')
     APPLICATION.setApplicationVersion(__version__)
