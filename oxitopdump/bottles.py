@@ -351,14 +351,12 @@ class BottleHead(object):
         self.bottle = bottle
         self.serial = serial
         self.pressure_limit = pressure_limit
-        if auto_readings:
+        self._auto_readings = None
+        self._manual_readings = None
+        if auto_readings is not None:
             self.auto_readings = auto_readings
-        else:
-            self.auto_readings = []
-        if manual_readings:
+        if manual_readings is not None:
             self.manual_readings = manual_readings
-        else:
-            self.manual_readings = []
 
     def __unicode__(self):
         return str(self).decode(ENCODING)
