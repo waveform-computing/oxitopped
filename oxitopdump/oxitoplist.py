@@ -131,8 +131,8 @@ class ListApplication(Application):
         form = [
             ('Serial',               bottle.serial),
             ('ID',                   str(bottle.id)),
-            ('Started',              bottle.start.strftime('%Y-%m-%d %H:%M:%S')),
-            ('Finished',             bottle.start.strftime('%Y-%m-%d %H:%M:%S')),
+            ('Started',              bottle.start.strftime('%a, %d %b %Y, %H:%M:%S')),
+            ('Finished',             bottle.finish.strftime('%a, %d %b %Y, %H:%M:%S')),
             ('Readings Interval',    str(bottle.interval)),
             ('Completed',            bottle.completed),
             ('Mode',                 bottle.mode_string),

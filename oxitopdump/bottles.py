@@ -362,7 +362,10 @@ class BottleHead(object):
         return str(self).decode(ENCODING)
 
     def _get_auto_readings(self):
-        if self._auto_readings is None and self.bottle.logger is not None:
+        if self._auto_readings is None:
+            if self.bottle.logger is None:
+                raise RuntimeError(
+                    'Cannot refresh a bottle head with no associated data logger')
             data = self.bottle.logger._GMSK(self.bottle.serial, self.serial)
             # XXX Check the first line includes the correct bottle and head
             # identifiers as specified
@@ -379,7 +382,10 @@ class BottleHead(object):
     auto_readings = property(_get_auto_readings, _set_auto_readings)
 
     def _get_manual_readings(self):
-        if self._manual_readings is None and self.bottle.logger is not None:
+        if self._manual_readings is None:
+            if self.bottle.logger is None:
+                raise RuntimeError(
+                    'Cannot refresh a bottle head with no associated data logger')
             if self.bottle.mode == 'pressure':
                 # Manual (momentary) readings can only be taken in pressure
                 # mode. As this mode can only operate with a single head, we
@@ -555,7 +561,6 @@ class DataAnalyzer(object):
         self.bottle = bottle
         self._delta = delta
         self._points = points
-        self._manual = False
         self._timestamps = None
         self._heads = None
 
@@ -584,17 +589,6 @@ class DataAnalyzer(object):
             self._timestamps = None
 
     points = property(_get_points, _set_points)
-
-    def _get_manual(self):
-        return self._manual
-
-    def _set_manual(self, value):
-        if value != self._manual:
-            self._manual = bool(value)
-            self._heads = None
-            self._timestamps = None
-
-    manual = property(_get_manual, _set_manual)
 
     @property
     def timestamps(self):
