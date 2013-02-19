@@ -64,6 +64,11 @@ class DataLoggerWindow(QtGui.QWidget):
             '%s on %s' % (data_logger.id, data_logger.port.port))
         self.exporter = DataLoggerExporter(self)
 
+    def closeEvent(self, event):
+        "Called when the window is closed"
+        self.data_logger.close()
+        event.accept()
+
     @property
     def data_logger(self):
         return self.ui.bottles_view.model().data_logger
