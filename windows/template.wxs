@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product
+        Id="*"
+        Manufacturer="Waveform"
+        Language="1033"
+        UpgradeCode="00866ECA-1931-4D15-9512-95D1FB4E8B68">
+
+        <Package
+            InstallerVersion="300"
+            InstallScope="perMachine"
+            Compressed="yes" />
+        <Media Id="1" Cabinet="disk1.cab" EmbedCab="yes" />
+        <MajorUpgrade
+            DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit."
+            AllowSameVersionUpgrades="no" />
+
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLDIR" FileSource="windows\dist">
+                </Directory>
+            </Directory>
+            <Directory Id="DesktopFolder" />
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ProgramMenuDir">
+                    <Component Id="StartMenuShortcuts" Guid="A8F429F7-FD5E-46E2-BF19-D4BFDD25A864">
+                        <RemoveFolder Id="ProgramMenuDir" On="uninstall" />
+                        <RegistryValue
+                            Root="HKMU" Key="Software\[Manufacturer]\[ProductName]"
+                            Type="integer" Name="StartMenuShortCut" Value="1"
+                            KeyPath="yes" />
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+
+        <Feature
+            Id="RootFeature"
+            Display="expand"
+            ConfigurableDirectory="INSTALLDIR">
+            <Feature Id="DefaultFeature" Display="hidden" />
+        </Feature>
+
+        <WixVariable Id="WixUILicenseRtf" Value="..\LICENSE.rtf" />
+        <UIRef Id="WixUI_FeatureTree" />
+        <UIRef Id="WixUI_ErrorProgressText" />
+    </Product>
+</Wix>
