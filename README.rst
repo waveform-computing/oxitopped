@@ -18,22 +18,8 @@ modes.
 Installation
 ============
 
-oxitopdump requires Python 2.6 or above (3.x currently untested), and pyserial
-(unsurprisingly). Additional optional dependencies exist if you wish to use
-Excel output (the xlwt package) or the GUI interface (the pyqt4, numpy, and
-matplotlib packages). It has been tested on Ubuntu 12.04 and Windows XP, but
-should work on other versions and Mac OS X provided all dependencies are met.
-After installing Python on your system, you can install oxitopdump from the
-PyPI repository with the following command::
-
-   $ easy_install oxitopdump
-
-Or, if you've got Python distribute installed::
-
-   $ pip install oxitopdump
-
-Either of these commands should pull in all necessary installation dependencies
-and install the suite.
+The `project homepage <http://www.waveform.org.uk/oxitopdump/>`_ has links to
+packages or instructions for all supported platforms.
 
 
 Instructions
