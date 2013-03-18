@@ -1,6 +1,6 @@
 Source: oxitopdump
 Maintainer: Dave Hughes <dave@waveform.org.uk>
-Homepage: https://github.com/waveform80/oxitopdump
+Homepage: https://www.waveform.org.uk/oxitopdump/
 Section: science
 Priority: extra
 Build-Depends: python-setuptools (>= 0.6b3), python-all (>= 2.6.6-3), debhelper (>= 8.0.0)
