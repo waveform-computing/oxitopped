@@ -28,28 +28,17 @@ from __future__ import (
 
 import io
 import os
-import logging
 from xml.etree.ElementTree import fromstring, tostring
 
 import serial
 from PyQt4 import QtCore, QtGui, uic
 
-from oxitopdump.oxitopview.connect_dialog import ConnectDialog
-from oxitopdump.oxitopview.data_logger_window import DataLoggerWindow
+from oxitopdump.windows import get_icon, get_ui_file
+from oxitopdump.windows.connect_dialog import ConnectDialog
+from oxitopdump.windows.data_logger_window import DataLoggerWindow
 from oxitopdump.bottles import Bottle
 from oxitopdump.logger import DataLogger, DummyLogger
 from oxitopdump.nullmodem import null_modem
-
-
-
-MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-
-def get_icon(icon_id):
-    "Returns an icon from the system theme or our fallback theme if required"
-    return QtGui.QIcon.fromTheme(icon_id,
-        QtGui.QIcon(os.path.join(
-            MODULE_DIR, 'fallback-theme', icon_id + '.png')))
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -58,7 +47,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.dummy_logger = None
-        self.ui = uic.loadUi(os.path.join(MODULE_DIR, 'main_window.ui'), self)
+        self.ui = uic.loadUi(get_ui_file('main_window.ui'), self)
         # Read configuration
         self.settings = QtCore.QSettings()
         self.settings.beginGroup('main_window')
@@ -193,10 +182,13 @@ class MainWindow(QtGui.QMainWindow):
 <p>Version {version}</p>
 <p>{application} is a GUI for interrogating an OxiTop OC110 Data Logger.
 Project homepage is at
-<a href="https://github.com/waveform80/oxitopdump">https://github.com/waveform80/oxitopdump</a></p>
-<p>Copyright 2012 Dave Hughes &lt;dave@waveform.org.uk&gt;</p>""")).format(
+<a href="{url}">{url}</a></p>
+<p>Copyright &copy; 2012-2013 {author} &lt;<a href="mailto:{author_email}">{author_email}</a>&gt;</p>""")).format(
                 application=QtGui.QApplication.instance().applicationName(),
                 version=QtGui.QApplication.instance().applicationVersion(),
+                url='https://www.waveform.org.uk/oxitopdump/',
+                author='Dave Hughes',
+                author_email='dave@waveform.org.uk',
             ))
 
     def about_qt(self):

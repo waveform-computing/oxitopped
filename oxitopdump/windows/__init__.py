@@ -17,7 +17,9 @@
 # You should have received a copy of the GNU General Public License along with
 # oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Main module for the oxitopview application."""
+"""
+Utility routines for GUI applications using pkg_resources
+"""
 
 from __future__ import (
     unicode_literals,
@@ -27,46 +29,50 @@ from __future__ import (
     )
 
 import sys
-import logging
+import os
 
-import sip
-for api in ('QDate', 'QDateTime', 'QTime', 'QString', 'QTextStream', 'QUrl', 'QVariant'):
-    sip.setapi(api, 2)
-from PyQt4 import QtCore, QtGui
-
-from oxitopdump import __version__
-from oxitopdump.oxitopview.main_window import MainWindow
+from PyQt4 import QtCore, QtGui, uic
 
 
-APPLICATION = None
-MAIN_WINDOW = None
+if getattr(sys, 'frozen', None):
+    def get_ui_dir():
+        "Returns the directory containing the *.ui Qt window definitions"
+        result = os.path.abspath(os.path.join(
+            os.path.dirname(sys.executable), *__name__.split('.')))
+        # Check the result is a directory and that it contains at least one .ui file
+        if not os.path.isdir(result):
+            raise ValueError('Expected %s to be a directory' % result)
+        if not any(filename.endswith('.ui') for filename in os.listdir(result)):
+            raise ValueError('UI directory %s does not contain any .ui files' % result)
+        return result
 
-def excepthook(type, value, tb):
-    # XXX Need to expand this to display a complete stack trace and add an
-    # e-mail option for bug reports
-    QtGui.QMessageBox.critical(
-        QtGui.QApplication.instance().activeWindow(),
-        QtGui.QApplication.instance().desktop().tr('Error'),
-        str(value))
+    UI_DIR = get_ui_dir()
 
-def main(args=None):
-    global APPLICATION, MAIN_WINDOW
-    if args is None:
-        args = sys.argv
-    if ('-D' in args) or ('--debug' in args):
-        console = logging.StreamHandler(sys.stderr)
-        console.setFormatter(logging.Formatter('%(message)s'))
-        console.setLevel(logging.DEBUG)
-        logging.getLogger().addHandler(console)
-        logging.getLogger().setLevel(logging.DEBUG)
-    APPLICATION = QtGui.QApplication(args)
-    APPLICATION.setApplicationName('oxitopview')
-    APPLICATION.setApplicationVersion(__version__)
-    APPLICATION.setOrganizationName('Waveform')
-    APPLICATION.setOrganizationDomain('waveform.org.uk')
-    MAIN_WINDOW = MainWindow()
-    MAIN_WINDOW.show()
-    return APPLICATION.exec_()
+    def resource_exists(module, name):
+        name = os.path.join(UI_DIR, name)
+        return os.path.exists(name) and not os.path.isdir(name)
 
-if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    def resource_stream(module, name):
+        name = os.path.join(UI_DIR, name)
+        return open(name, 'r')
+
+    def resource_filename(module, name):
+        name = os.path.join(UI_DIR, name)
+        return name
+else:
+    from pkg_resources import resource_stream, resource_filename, resource_exists
+
+
+def get_ui_file(ui_file):
+    "Returns a file-like object for the specified .ui file"
+    return resource_stream(__name__, ui_file)
+
+def get_icon(icon_id):
+    "Returns an icon from the system theme or our fallback theme if required"
+    fallback_path = os.path.join('fallback-theme', icon_id + '.png')
+    if resource_exists(__name__, fallback_path):
+        return QtGui.QIcon.fromTheme(icon_id,
+            QtGui.QIcon(resource_filename(__name__, fallback_path)))
+    else:
+        return QtGui.QIcon.fromTheme(icon_id)
+

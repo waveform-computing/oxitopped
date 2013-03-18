@@ -32,10 +32,11 @@ from datetime import datetime
 
 from PyQt4 import QtCore, QtGui, uic
 
-from oxitopdump.oxitopview.bottle_window import BottleWindow
-from oxitopdump.oxitopview.exporter import BaseExporter
-from oxitopdump.oxitopview.export_csv_dialog import ExportCsvDialog
-from oxitopdump.oxitopview.export_excel_dialog import ExportExcelDialog
+from oxitopdump.windows import get_ui_file
+from oxitopdump.windows.bottle_window import BottleWindow
+from oxitopdump.windows.exporter import BaseExporter
+from oxitopdump.windows.export_csv_dialog import ExportCsvDialog
+from oxitopdump.windows.export_excel_dialog import ExportExcelDialog
 
 # XXX Py3
 try:
@@ -44,16 +45,12 @@ except NameError:
     basestring = str
 
 
-MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-
 class DataLoggerWindow(QtGui.QWidget):
     "Document window for the data logger connection"
 
     def __init__(self, data_logger):
         super(DataLoggerWindow, self).__init__(None)
-        self.ui = uic.loadUi(
-            os.path.join(MODULE_DIR, 'data_logger_window.ui'), self)
+        self.ui = uic.loadUi(get_ui_file('data_logger_window.ui'), self)
         self.ui.bottles_view.setModel(DataLoggerModel(data_logger))
         for col in range(self.ui.bottles_view.model().columnCount()):
             self.ui.bottles_view.resizeColumnToContents(col)

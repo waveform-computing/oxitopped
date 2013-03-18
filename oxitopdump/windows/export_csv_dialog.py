@@ -32,6 +32,8 @@ from datetime import datetime
 
 from PyQt4 import QtCore, QtGui, uic
 
+from oxitopdump.windows import get_ui_file
+
 
 DEFAULT_DELIMITER = ','
 DEFAULT_LINETERMINATOR = '\r\n'
@@ -56,12 +58,7 @@ class ExportCsvDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
         super(ExportCsvDialog, self).__init__(parent)
-        self.ui = uic.loadUi(
-            os.path.abspath(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'export_csv_dialog.ui'
-                )), self)
+        self.ui = uic.loadUi(get_ui_file('export_csv_dialog.ui'), self)
         # Read the last-used lists
         self.settings = self.parent().window().settings
         self.settings.beginGroup('export_csv')

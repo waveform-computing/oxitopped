@@ -251,6 +251,7 @@ class TerminalApplication(object):
 
 import io
 import serial
+from xml.etree.ElementTree import fromstring, tostring
 
 from oxitopdump import __version__
 from oxitopdump.bottles import Bottle

@@ -34,9 +34,10 @@ from itertools import izip_longest
 import numpy as np
 from PyQt4 import QtCore, QtGui, uic
 
-from oxitopdump.oxitopview.exporter import BaseExporter
-from oxitopdump.oxitopview.export_csv_dialog import ExportCsvDialog
-from oxitopdump.oxitopview.export_excel_dialog import ExportExcelDialog
+from oxitopdump.windows import get_ui_file
+from oxitopdump.windows.exporter import BaseExporter
+from oxitopdump.windows.export_csv_dialog import ExportCsvDialog
+from oxitopdump.windows.export_excel_dialog import ExportExcelDialog
 from oxitopdump.bottles import DataAnalyzer
 
 # XXX Py3
@@ -55,17 +56,12 @@ except ImportError:
     matplotlib = None
 
 
-MODULE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-
-
 class BottleWindow(QtGui.QWidget):
     "Document window for displaying a particular bottle"
 
     def __init__(self, bottle):
         super(BottleWindow, self).__init__(None)
-        self.ui = uic.loadUi(
-            os.path.join(MODULE_DIR, 'bottle_window.ui'), self)
+        self.ui = uic.loadUi(get_ui_file('bottle_window.ui'), self)
         self.ui.readings_view.setModel(BottleModel(DataAnalyzer(bottle, delta=True)))
         for col in range(self.ui.readings_view.model().columnCount()):
             self.ui.readings_view.resizeColumnToContents(col)

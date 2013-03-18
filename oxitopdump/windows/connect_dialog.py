@@ -31,18 +31,15 @@ from operator import itemgetter
 
 from PyQt4 import QtCore, QtGui, uic
 
+from oxitopdump.windows import get_ui_file
+
 
 class ConnectDialog(QtGui.QDialog):
     "Implements the file/connect dialog"
 
     def __init__(self, parent=None):
         super(ConnectDialog, self).__init__(parent)
-        self.ui = uic.loadUi(
-            os.path.abspath(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'connect_dialog.ui'
-                )), self)
+        self.ui = uic.loadUi(get_ui_file('connect_dialog.ui'), self)
         # Read the last-used lists
         self.settings = self.parent().settings
         self.settings.beginGroup('last_used')

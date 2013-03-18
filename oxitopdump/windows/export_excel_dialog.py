@@ -31,6 +31,8 @@ import xlwt
 
 from PyQt4 import QtCore, QtGui, uic
 
+from oxitopdump.windows import get_ui_file
+
 
 DEFAULT_HEADER_ROW = False
 DEFAULT_ROW_COLORS = False
@@ -41,12 +43,7 @@ class ExportExcelDialog(QtGui.QDialog):
 
     def __init__(self, parent=None):
         super(ExportExcelDialog, self).__init__(parent)
-        self.ui = uic.loadUi(
-            os.path.abspath(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    'export_excel_dialog.ui'
-                )), self)
+        self.ui = uic.loadUi(get_ui_file('export_excel_dialog.ui'), self)
         # Read the last-used lists
         self.settings = self.parent().window().settings
         self.settings.beginGroup('export_excel')
