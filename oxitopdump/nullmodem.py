@@ -19,9 +19,6 @@
 
 """
 Defines a NullModem class for emulating serial interfaces between applications.
-
-Note: do not instantiate NullModem directly; use the null_modem function
-defined below to instantiate two at once and associate each with the other.
 """
 
 from __future__ import (
@@ -64,6 +61,9 @@ class NullModem(object):
     Emulates one end of a null modem. Don't construct this class directly, but
     use the null_modem routine below to construct both ends of the null-modem.
     All parameters are equivalent to the pyserial Serial class.
+
+    Note: do not instantiate this class directly; use the `null_modem` function
+    to instantiate two at once and associate each with the other.
     """
 
     def __init__(self, port=None, baudrate=9600, bytesize=serial.EIGHTBITS,

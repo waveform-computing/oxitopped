@@ -17,10 +17,8 @@
 # You should have received a copy of the GNU General Public License along with
 # oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
-"""An OxiTop OC110 emulator.
-
-This application emulates an OxiTop OC110 data dummy_logger for the purposes of
-easy development without access to an actual OC110.
+"""
+Main module for the oxitopemu utility.
 
 """
 
@@ -40,23 +38,20 @@ from xml.etree.ElementTree import fromstring, tostring
 
 import serial
 
-from oxitopdump import Application
+from oxitopdump.terminal import OxiTopApplication
 from oxitopdump.bottles import Bottle
 from oxitopdump.logger import DummyLogger
 from oxitopdump.daemon import DaemonContext
 
 
-class EmuApplication(Application):
+class EmuApplication(OxiTopApplication):
     """
-    %prog [options]
+    %prog [options] bottles-xml
 
-    This utility dumps the sample readings stored on a connected OxiTop Data
-    Logger to files in CSV or Excel format. If bottle-serial values are
-    specified, the details of those bottles and all heads attached to them will
-    be exported, otherwise a list of all available bottles is exported.
-    The bottle-serial values may include *, ?, and [] wildcards. The filename
-    value may include references to bottle attributes like {bottle.serial} or
-    {bottle.id}.
+    This utility emulates an OxiTop OC110 data dummy_logger for the purposes of
+    easy development without access to an actual OC110. The bottle data served
+    by the emulator is specified in an XML-based file which can be generated
+    using oxitopdump or oxitopview with a real unit.
     """
 
     def __init__(self):
@@ -132,3 +127,5 @@ class EmuApplication(Application):
 
 main = EmuApplication()
 
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

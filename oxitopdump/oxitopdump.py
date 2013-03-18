@@ -18,12 +18,8 @@
 # You should have received a copy of the GNU General Public License along with
 # oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
 
-"""A simple application for listing data present on an OxiTop Data Logger
-
-This application was developed after a quick reverse engineering of the basic
-protocol of the OxiTop OC110 pressure data logger. Our understanding of the
-protocol is incomplete at best but sufficient for data extraction.
-
+"""
+Main module for the oxitopdump utility.
 """
 
 from __future__ import (
@@ -34,12 +30,12 @@ from __future__ import (
     )
 
 import os
+import sys
 import csv
 import fnmatch
-import logging
 from datetime import datetime
 
-from oxitopdump import Application
+from oxitopdump.terminal import OxiTopApplication
 
 
 TERMINATORS = {
@@ -55,7 +51,7 @@ QUOTING = {
     'nonnumeric': csv.QUOTE_NONNUMERIC,
     }
 
-class DumpApplication(Application):
+class DumpApplication(OxiTopApplication):
     """
     %prog [options] [bottle-serial]... filename
 
@@ -218,3 +214,5 @@ class DumpApplication(Application):
 
 main = DumpApplication()
 
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
