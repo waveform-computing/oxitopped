@@ -1,7 +1,8 @@
 prune debian
+prune windows
 prune docs
 prune icons
 prune etc
-exclude Makefile
 include README.rst
 include LICENSE.txt
+recursive-include oxitopdump/windows *.ui *.png *.svg
