@@ -1,5 +1,5 @@
 debian/oxitopview.desktop /usr/share/applications/
-etc/bash_completion.d/oxitopdump /etc/bash_completion.d/
+etc/bash_completion.d/oxitopped /etc/bash_completion.d/
 icons/xpm/oxitopview.xpm /usr/share/pixmaps/
 icons/scalable/oxitopview.svg /usr/share/icons/hicolor/scalable/apps/
 icons/128x128/oxitopview.png /usr/share/icons/hicolor/128x128/apps/

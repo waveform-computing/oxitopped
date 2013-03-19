@@ -4,19 +4,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 Main module for the oxitopdump utility.
@@ -35,7 +35,7 @@ import csv
 import fnmatch
 from datetime import datetime
 
-from oxitopdump.terminal import OxiTopApplication
+from oxitopped.terminal import OxiTopApplication
 
 
 TERMINATORS = {
@@ -131,7 +131,7 @@ class DumpApplication(OxiTopApplication):
         ext = os.path.splitext(args[-1])[-1].lower()
         try:
             if ext == '.csv':
-                from oxitopdump.export_csv import CsvExporter
+                from oxitopped.export_csv import CsvExporter
                 exporter = CsvExporter()
                 exporter.delimiter = str(options.delimiter)
                 exporter.quotechar = str(options.quotechar)
@@ -155,7 +155,7 @@ class DumpApplication(OxiTopApplication):
                 else:
                     exporter.timestamp_format = options.timestamp_format
             elif ext == '.xls':
-                from oxitopdump.export_xls import ExcelExporter
+                from oxitopped.export_xls import ExcelExporter
                 exporter = ExcelExporter()
             else:
                 self.parser.error('unknown file extension %s' % ext)

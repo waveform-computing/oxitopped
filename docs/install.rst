@@ -2,7 +2,7 @@
 Installation
 ============
 
-oxitopdump is distributed in several formats. The following sections detail
+oxitopped is distributed in several formats. The following sections detail
 installation on a variety of platforms.
 
 
@@ -35,14 +35,14 @@ you are kept up to date as new releases are made)::
 
     $ sudo add-apt-repository ppa://waveform/ppa
     $ sudo apt-get update
-    $ sudo apt-get install oxitopdump
+    $ sudo apt-get install oxitopped
 
 
 Microsoft Windows
 =================
 
 On Windows it is simplest to install from the standalone MSI installation
-package available from the `homepage <http://www.waveform.org.uk/oxitopdump/>`_.
+package available from the `homepage <http://www.waveform.org.uk/oxitopped/>`_.
 Be aware that the installation package requires administrator privileges.
 
 
@@ -55,16 +55,16 @@ XXX To be written
 Other Platforms
 ===============
 
-If your platform is *not* covered by one of the sections above, oxitopdump is
+If your platform is *not* covered by one of the sections above, oxitopped is
 available from PyPI and can therefore be installed with the Python distribute
 ``pip`` tool::
 
-   $ pip install oxitopdump
+   $ pip install oxitopped
 
 Theoretically this should install the mandatory pre-requisites, but optional
 pre-requisites require suffixes like the following::
 
-   $ pip install "oxitopdump[GUI,XLS]"
+   $ pip install "oxitopped[GUI,XLS]"
 
 Please be aware that at this time, the PyQt package does not build "nicely"
 under ``pip``. If it is available from your distro's package manager I strongly
@@ -79,7 +79,7 @@ SIP) under a virtualenv sandbox.
 Development
 ===========
 
-If you wish to develop oxitopdump, you can install the pre-requisites, construct
+If you wish to develop oxitopped, you can install the pre-requisites, construct
 a virtualenv sandbox, and check out the source code from GitHub with the
 following command lines::
 
@@ -92,8 +92,8 @@ following command lines::
    $ source sandbox/bin/activate
 
    # Check out the source code and install it in the sandbox for development and testing
-   $ git clone https://github.com/waveform80/oxitopdump.git
-   $ cd oxitopdump
+   $ git clone https://github.com/waveform80/oxitopped.git
+   $ cd oxitopped
    $ make develop
 
 The above instructions assume you are on Ubuntu Linux. Please feel free to

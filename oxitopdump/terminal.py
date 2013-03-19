@@ -2,19 +2,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 Defines base classes for command line utilities.
@@ -253,10 +253,10 @@ import io
 import serial
 from xml.etree.ElementTree import fromstring, tostring
 
-from oxitopdump import __version__
-from oxitopdump.bottles import Bottle
-from oxitopdump.logger import DataLogger, DummyLogger, LoggerError
-from oxitopdump.nullmodem import null_modem
+from oxitopped import __version__
+from oxitopped.bottles import Bottle
+from oxitopped.logger import DataLogger, DummyLogger, LoggerError
+from oxitopped.nullmodem import null_modem
 
 
 class OxiTopApplication(TerminalApplication):

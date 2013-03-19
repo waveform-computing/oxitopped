@@ -1,6 +1,6 @@
-==========
-oxitopdump
-==========
+=========
+oxitopped
+=========
 
 Oxitopdump is a small suite of utilies for extracting data from an OxiTop data
 logger via a serial (RS-232) port and dumping it to a specified file in various
@@ -18,7 +18,7 @@ modes.
 Installation
 ============
 
-The `project homepage <http://www.waveform.org.uk/oxitopdump/>`_ has links to
+The `project homepage <http://www.waveform.org.uk/oxitopped/>`_ has links to
 packages or instructions for all supported platforms.
 
 
@@ -44,17 +44,17 @@ matplotlib (if it is installed) to graph the pressure results from bottles.
 License
 =======
 
-This file is part of oxitopdump.
+This file is part of oxitopped.
 
-oxitopdump is free software: you can redistribute it and/or modify it under the
+oxitopped is free software: you can redistribute it and/or modify it under the
 terms of the GNU General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later
 version.
 
-oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 

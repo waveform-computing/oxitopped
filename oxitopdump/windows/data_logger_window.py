@@ -3,19 +3,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """Module implementing the oxitopview data logger sub-window."""
 
@@ -32,11 +32,11 @@ from datetime import datetime
 
 from PyQt4 import QtCore, QtGui, uic
 
-from oxitopdump.windows import get_ui_file
-from oxitopdump.windows.bottle_window import BottleWindow
-from oxitopdump.windows.exporter import BaseExporter
-from oxitopdump.windows.export_csv_dialog import ExportCsvDialog
-from oxitopdump.windows.export_excel_dialog import ExportExcelDialog
+from oxitopped.windows import get_ui_file
+from oxitopped.windows.bottle_window import BottleWindow
+from oxitopped.windows.exporter import BaseExporter
+from oxitopped.windows.export_csv_dialog import ExportCsvDialog
+from oxitopped.windows.export_excel_dialog import ExportExcelDialog
 
 # XXX Py3
 try:
@@ -167,7 +167,7 @@ class DataLoggerExporter(BaseExporter):
         "Export the bottle list to a CSV file"
         dialog = ExportCsvDialog(self.parent)
         if dialog.exec_():
-            from oxitopdump.export_csv import CsvExporter
+            from oxitopped.export_csv import CsvExporter
             exporter = CsvExporter()
             exporter.delimiter = dialog.delimiter
             exporter.lineterminator = dialog.lineterminator
@@ -181,7 +181,7 @@ class DataLoggerExporter(BaseExporter):
         "Export the bottle list to an Excel file"
         dialog = ExportExcelDialog(self.parent)
         if dialog.exec_():
-            from oxitopdump.export_xls import ExcelExporter
+            from oxitopped.export_xls import ExcelExporter
             exporter = ExcelExporter()
             exporter.header_row = dialog.header_row
             exporter.row_colors = dialog.row_colors

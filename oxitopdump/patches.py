@@ -3,22 +3,22 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-Monkey patches used by oxitopdump.
+Monkey patches used by oxitopped.
 """
 
 import os
@@ -60,5 +60,5 @@ if float(serial.VERSION) < 2.7 and sys.platform.lower()[:5] == 'linux':
             return '%s %s %s' % (iManufacturer or idVendor, iProduct or idProduct, iSerial)
         except IOError:
             return base
-    
+
     serial.tools.list_ports_posix.usb_lsusb_string = usb_lsusb_string

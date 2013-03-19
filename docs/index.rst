@@ -2,7 +2,7 @@
 Welcome!
 ========
 
-oxitopdump is a small suite of utilies for extracting data from an OxiTop data
+oxitopped is a small suite of utilies for extracting data from an OxiTop data
 logger via a serial (RS-232) port and dumping it to a specified file in various
 formats. Options are provided for controlling the output, and for listing the
 content of the device.

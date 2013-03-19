@@ -3,19 +3,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 Defines the structures and interfaces for gathering data from an OC110
@@ -23,7 +23,7 @@ Defines the structures and interfaces for gathering data from an OC110
 This module defines a couple of data structures which represent gas bottle
 (`Bottle`) and the measuring head(s) of a gas bottle (`BottleHead`). These can
 be constructed manually but more usually will be obtained from an instance of
-`DataLogger` (see the `oxitopdump.logger` module).
+`DataLogger` (see the `oxitopped.logger` module).
 """
 
 from __future__ import (

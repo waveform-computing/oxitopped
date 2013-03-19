@@ -3,19 +3,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """Module implementing the oxitopview main window."""
 
@@ -33,12 +33,12 @@ from xml.etree.ElementTree import fromstring, tostring
 import serial
 from PyQt4 import QtCore, QtGui, uic
 
-from oxitopdump.windows import get_icon, get_ui_file
-from oxitopdump.windows.connect_dialog import ConnectDialog
-from oxitopdump.windows.data_logger_window import DataLoggerWindow
-from oxitopdump.bottles import Bottle
-from oxitopdump.logger import DataLogger, DummyLogger
-from oxitopdump.nullmodem import null_modem
+from oxitopped.windows import get_icon, get_ui_file
+from oxitopped.windows.connect_dialog import ConnectDialog
+from oxitopped.windows.data_logger_window import DataLoggerWindow
+from oxitopped.bottles import Bottle
+from oxitopped.logger import DataLogger, DummyLogger
+from oxitopped.nullmodem import null_modem
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -186,7 +186,7 @@ Project homepage is at
 <p>Copyright &copy; 2012-2013 {author} &lt;<a href="mailto:{author_email}">{author_email}</a>&gt;</p>""")).format(
                 application=QtGui.QApplication.instance().applicationName(),
                 version=QtGui.QApplication.instance().applicationVersion(),
-                url='https://www.waveform.org.uk/oxitopdump/',
+                url='https://www.waveform.org.uk/oxitopped/',
                 author='Dave Hughes',
                 author_email='dave@waveform.org.uk',
             ))

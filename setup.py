@@ -3,19 +3,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import (
     # XXX Alright! I give in! Distutils and all its myriad extensions (py2exe,
@@ -46,13 +46,13 @@ require_python(0x020600f0)
 
 # All meta-data is defined as global variables so that other modules can query
 # it easily without having to wade through distutils nonsense
-NAME         = 'oxitopdump'
+NAME         = 'oxitopped'
 DESCRIPTION  = 'Tools for extracting data from an OxiTop OC110 data logger'
 KEYWORDS     = ['science', 'gas', 'bottle', 'oxitop']
 AUTHOR       = 'Dave Hughes'
 AUTHOR_EMAIL = 'dave@waveform.org.uk'
 MANUFACTURER = 'waveform'
-URL          = 'https://www.waveform.org.uk/oxitopdump/'
+URL          = 'https://www.waveform.org.uk/oxitopped/'
 
 REQUIRES = [
     'pyserial',
@@ -83,25 +83,25 @@ CLASSIFIERS = [
 
 ENTRY_POINTS = {
     'console_scripts': [
-        'oxitoplist = oxitopdump.oxitoplist:main',
-        'oxitopdump = oxitopdump.oxitopdump:main',
-        'oxitopemu = oxitopdump.oxitopemu:main',
+        'oxitoplist = oxitopped.oxitoplist:main',
+        'oxitopdump = oxitopped.oxitopdump:main',
+        'oxitopemu = oxitopped.oxitopemu:main',
         ],
     'gui_scripts': [
-        'oxitopview = oxitopdump.oxitopview:main',
+        'oxitopview = oxitopped.oxitopview:main',
         ],
     }
 
 PACKAGES = [
-    'oxitopdump',
-    'oxitopdump.windows',
+    'oxitopped',
+    'oxitopped.windows',
     ]
 
 PACKAGE_DATA = {
-    'oxitopdump': [
+    'oxitopped': [
         '*.xml',
         ],
-    'oxitopdump.windows': [
+    'oxitopped.windows': [
         '*.ui',
         os.path.join('fallback-theme', '*.png'),
         os.path.join('fallback-theme', '*.svg'),

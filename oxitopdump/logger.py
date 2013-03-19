@@ -3,19 +3,19 @@
 
 # Copyright 2012 Dave Hughes.
 #
-# This file is part of oxitopdump.
+# This file is part of oxitopped.
 #
-# oxitopdump is free software: you can redistribute it and/or modify it under
+# oxitopped is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# oxitopdump is distributed in the hope that it will be useful, but WITHOUT ANY
+# oxitopped is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# oxitopdump.  If not, see <http://www.gnu.org/licenses/>.
+# oxitopped.  If not, see <http://www.gnu.org/licenses/>.
 
 """
 Defines the interfaces for gathering data from an OC110, and an OC110 emulator.
@@ -24,7 +24,7 @@ This module defines a `DataLogger` class which provides an interface to the
 OC110 serial port. For testing purposes a "fake OC110" can be found in the
 `DummyLogger` class. This can be connected to an application with real serial
 ports or with instances of the `NullModem` class in the associated
-`oxitopdump.nullmodem` module.
+`oxitopped.nullmodem` module.
 """
 
 from __future__ import (
@@ -41,7 +41,7 @@ from threading import Thread
 
 import serial
 
-from oxitopdump.bottles import Bottle, BottleHead, ENCODING
+from oxitopped.bottles import Bottle, BottleHead, ENCODING
 
 
 class LoggerError(Exception):
