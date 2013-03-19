@@ -98,6 +98,9 @@ PACKAGES = [
     ]
 
 PACKAGE_DATA = {
+    'oxitopdump': [
+        '*.xml',
+        ],
     'oxitopdump.windows': [
         '*.ui',
         os.path.join('fallback-theme', '*.png'),
