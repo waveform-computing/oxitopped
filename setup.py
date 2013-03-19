@@ -63,6 +63,7 @@ EXTRA_REQUIRES = {
     'XLS':        ['xlwt'],
     'GUI':        ['pyqt', 'matplotlib', 'numpy'],
     'daemon':     ['python-daemon'],
+    'completion': ['optcomplete'],
     }
 
 CLASSIFIERS = [
