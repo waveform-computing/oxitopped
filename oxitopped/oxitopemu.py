@@ -87,10 +87,11 @@ class EmuApplication(OxiTopApplication):
             parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
             timeout=5, rtscts=True)
         files_preserve = [port]
-        if self.logfile:
-            files_preserve.append(self.logfile.stream)
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.FileHandler):
+                files_preserve.append(handler.stream)
         if not options.daemon:
-            files_preserve.append(self.console.stream)
+            files_preserve.append(sys.stderr)
         with DaemonContext(
                 files_preserve=files_preserve,
                 # The following odd construct is to ensure detachment only
