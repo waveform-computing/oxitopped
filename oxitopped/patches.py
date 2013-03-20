@@ -21,6 +21,13 @@
 Monkey patches used by oxitopped.
 """
 
+from __future__ import (
+    unicode_literals,
+    absolute_import,
+    division,
+    print_function,
+    )
+
 import os
 import sys
 

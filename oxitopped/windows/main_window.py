@@ -33,6 +33,7 @@ from xml.etree.ElementTree import fromstring, tostring
 import serial
 from PyQt4 import QtCore, QtGui, uic
 
+import oxitopped.patches
 from oxitopped.windows import get_icon, get_ui_file
 from oxitopped.windows.connect_dialog import ConnectDialog
 from oxitopped.windows.data_logger_window import DataLoggerWindow
