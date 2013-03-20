@@ -1,3 +1,12 @@
+oxitopped (0.2-1~ppa1) precise; urgency=low
+
+  * First public testing release. Protocol understanding is still incomplete
+    but probably sufficient for limited usage (e.g. in pressure mode only)
+  * Provided applications are oxitoplist, oxitopdump, oxitopemu (console),
+    and oxitopview (GUI)
+
+ -- Dave Hughes <dave@waveform.org.uk>  Wed, 20 Mar 2013 06:01:56 +0000
+
 oxitopped (0.1-1~ppa1) precise; urgency=low
 
   * Initial release
