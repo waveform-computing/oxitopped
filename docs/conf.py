@@ -226,6 +226,7 @@ latex_documents = [
 man_pages = [
     ('oxitoplist', 'oxitoplist', 'oxitoplist utility', AUTHORS, 1),
     ('oxitopdump', 'oxitopdump', 'oxitopdump utility', AUTHORS, 1),
+    ('oxitopemu',  'oxitopemu',  'oxitopemu utility',  AUTHORS, 1),
 ]
 
 # If true, show URL addresses after external links.

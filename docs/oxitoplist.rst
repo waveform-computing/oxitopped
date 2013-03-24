@@ -1,3 +1,5 @@
+.. _oxitoplist:
+
 ==========
 oxitoplist
 ==========
@@ -8,12 +10,14 @@ and all heads attached to them will be displayed, otherwise a list of all
 available bottle serials provided. The bottle-serial values may include \*,
 ?, and [] wildcards.
 
+
 Synopsis
 ========
 
 ::
 
   $ oxitoplist [options] [bottle-serial]...
+
 
 Description
 ===========
@@ -40,7 +44,7 @@ Description
 
    log messages to the specified file
 
-.. option:: -D, --debug
+.. option:: -P, --pdb
 
    enables debug mode (runs under PDB)
 
@@ -62,6 +66,7 @@ Description
 
    if specified with --readings, output a moving average over the specified
    number of points instead of actual readings
+
 
 Examples
 ========
@@ -113,7 +118,7 @@ may include wildcards), the details of the bottles listed are output instead::
 
 The :option:`-r` option can be used to include the readings from selected
 bottles. These are excluded by default as it's probably more useful to use
-`oxitopdump` for those purposes::
+:doc:`oxitopdump` for those purposes::
 
     $ oxitoplist -p /dev/ttyUSB0 -r 110222-06
 

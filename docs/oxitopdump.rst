@@ -1,3 +1,5 @@
+.. _oxitopdump:
+
 ==========
 oxitopdump
 ==========
@@ -9,12 +11,14 @@ otherwise a list of all available bottles is exported. The bottle-serial values
 may include \*, ?, and [] wildcards. The filename value may include references
 to bottle attributes like {bottle.serial} or {bottle.id}.
 
+
 Synopsis
 ========
 
 ::
 
   $ oxitopdump [options] [bottle-serial]... filename
+
 
 Description
 ===========
@@ -41,7 +45,7 @@ Description
 
    log messages to the specified file
 
-.. option:: -D, --debug
+.. option:: -P, --pdb
 
    enables debug mode (runs under PDB)
 
@@ -100,7 +104,7 @@ Examples
 
 When `oxitopdump` is invoked without specifying a *bottle-serial* the list of
 bottles will be exported to the specified filename. Typically you will want
-to use `oxitoplist` to discover the content of the connected device before
+to use :doc:`oxitoplist` to discover the content of the connected device before
 exporting the readings for a specific bottle like so::
 
     $ oxitoplist -p /dev/ttyUSB0
