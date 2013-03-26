@@ -17,6 +17,7 @@ Synopsis
 
   $ oxitopemu [options] bottles-xml
 
+
 Description
 ===========
 
@@ -82,8 +83,8 @@ the clients when the ``TEST`` port is specified. In this case, an emulated
 null-modem is used to connect the emulation code to the client.
 
 
+.. _null-modem: http://www.amazon.co.uk/StarTech-RS232-Serial-Modem-Adapter/dp/B000DZH4V0/ref=pd_sim_ce_5
 .. _OxiTop OC110: http://www.wtw.de/en/products/lab/bodrespiration/depletionrespiration-with-oxitopr-control-oc-110.html
 .. _RaspberryPi: http://www.raspberrypi.org/
 .. _USB to Serial: http://www.amazon.co.uk/Plugable-Adapter-Prolific-PL2303HX-Chipset/dp/B00425S1H8/ref=cm_cr_pr_product_top
-.. _null-modem: http://www.amazon.co.uk/StarTech-RS232-Serial-Modem-Adapter/dp/B000DZH4V0/ref=pd_sim_ce_5
 

@@ -13,25 +13,22 @@ Where possible, I endeavour to provide installation methods that provide all
 pre-requisites automatically - see the following sections for platform specific
 instructions.
 
-If your platform is not listed (or you're simply interested in what rastools
-depends on): rastools depends primarily on `matplotlib
-<http://matplotlib.sourceforge.net>`_. If you wish to use the GUI you will also
-need `PyQt4 <http://www.riverbankcomputing.com/software/pyqt/download>`_
-installed.
+If your platform is not listed (or you're simply interested in what oxitopped
+depends on): oxitopped depends primarily on `pyserial`_. If you wish to use the
+GUI you will also need `PyQt4`_ installed.
 
 Additional optional dependencies are:
 
- * `xlwt <http://pypi.python.org/pypi/xlwt>`_ - required for Excel writing support
+ * `xlwt`_ - required for Excel writing support
 
- * `maptlotlib <http://matplotlib.org>`_ - required for graphing support
+ * `matplotlib`_ - required for graphing support
 
 
 Ubuntu Linux
 ============
 
-For Ubuntu Linux, it is simplest to install from the `PPA
-<https://launchpad.net/~waveform/+archive/ppa>`_ as follows (this also ensures
-you are kept up to date as new releases are made)::
+For Ubuntu Linux, it is simplest to install from the `Waveform PPA`_ as follows
+(this also ensures you are kept up to date as new releases are made)::
 
     $ sudo add-apt-repository ppa://waveform/ppa
     $ sudo apt-get update
@@ -42,8 +39,8 @@ Microsoft Windows
 =================
 
 On Windows it is simplest to install from the standalone MSI installation
-package available from the `homepage <http://www.waveform.org.uk/oxitopped/>`_.
-Be aware that the installation package requires administrator privileges.
+package available from the `oxitopped homepage`_.  Be aware that the
+installation package requires administrator privileges.
 
 
 Apple Mac OS X
@@ -72,8 +69,7 @@ recommend using that as your source of this pre-requisite.
 
 If PyQt is not provided by your distro (or you're on some esoteric platform
 without a package manager), you can try following the instructions on the
-`Veusz wiki <http://barmag.net/veusz-wiki/DevStart>`_ for building PyQt (and
-SIP) under a virtualenv sandbox.
+`Veusz wiki`_ for building PyQt (and SIP) under a virtualenv sandbox.
 
 
 Development
@@ -98,3 +94,12 @@ following command lines::
 
 The above instructions assume you are on Ubuntu Linux. Please feel free to
 extend this section with instructions for alternate platforms.
+
+.. _matplotlib: http://matplotlib.org/
+.. _oxitopped homepage: https://www.waveform.org.uk/oxitopped/
+.. _PyQt4: http://www.riverbankcomputing.com/software/pyqt/download
+.. _pyserial: http://pyserial.sourceforge.net/
+.. _Veusz wiki: http://barmag.net/veusz-wiki/DevStart
+.. _Waveform PPA: https://launchpad.net/~waveform/+archive/ppa
+.. _xlwt: http://pypi.python.org/pypi/xlwt
+
