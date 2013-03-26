@@ -2,7 +2,7 @@
 License
 =======
 
-This file is part of oxitopped.
+This documentation is part of oxitopped.
 
 oxitopped is free software: you can redistribute it and/or modify it under the
 terms of the GNU General Public License as published by the Free Software
