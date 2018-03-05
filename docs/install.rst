@@ -88,7 +88,7 @@ following command lines::
    $ source sandbox/bin/activate
 
    # Check out the source code and install it in the sandbox for development and testing
-   $ git clone https://github.com/waveform80/oxitopped.git
+   $ git clone https://github.com/waveform-computing/oxitopped.git
    $ cd oxitopped
    $ make develop
 
